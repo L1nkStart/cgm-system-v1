@@ -336,7 +336,7 @@ export function NewCaseForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {analysts.length === 0 ? (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-baremos-available" disabled>
                         No hay analistas disponibles
                       </SelectItem>
                     ) : (
@@ -357,7 +357,7 @@ export function NewCaseForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {baremos.length === 0 ? (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-baremos-available" disabled>
                         No hay baremos disponibles
                       </SelectItem>
                     ) : (

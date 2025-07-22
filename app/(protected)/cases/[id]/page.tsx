@@ -6,7 +6,8 @@ import { CaseDetailSection } from "@/components/case-detail-section"
 import { AttendedServicesTable } from "@/components/attended-services-table"
 import { EditCaseForm } from "@/components/edit-case-form"
 import { AuditCaseForm } from "@/components/audit-case-form"
-import { ScheduleAppointmentForm } from "@/components/schedule-appointment-form" // Import the new form
+import { ScheduleAppointmentForm } from "@/components/schedule-appointment-form"
+import { PreInvoiceDialog } from "@/components/pre-invoice-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogTrigger } from "@/components/ui/dialog"
@@ -26,7 +27,7 @@ import {
   ClipboardList,
   Scale,
 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast" // Import useToast
+import { useToast } from "@/hooks/use-toast"
 
 interface Service {
   name: string
@@ -90,9 +91,10 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
   const [isAuditFormOpen, setIsAuditFormOpen] = useState(false)
-  const [isScheduleFormOpen, setIsScheduleFormOpen] = useState(false) // New state for schedule form
+  const [isScheduleFormOpen, setIsScheduleFormOpen] = useState(false)
+  const [isPreInvoiceFormOpen, setIsPreInvoiceFormOpen] = useState(false) // New state for pre-invoice form
   const [userRole, setUserRole] = useState<string | null>(null)
-  const { toast } = useToast() // Initialize useToast
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchCaseData()
@@ -238,6 +240,8 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const canEdit = userRole === "Superusuario" || userRole === "Coordinador Regional"
   const canAudit = userRole === "Superusuario" || userRole === "Médico Auditor"
   const canSchedule = userRole === "Superusuario" || userRole === "Analista Concertado"
+  const canPreInvoice =
+    (userRole === "Superusuario" || userRole === "Jefe Financiero") && caseData.status === "Auditado/Aprobado"
 
   // Function to prepare general case details
   const getGeneralDetails = (data: Case): DetailItem[] => [
@@ -277,7 +281,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   // Function to prepare appointment details
   const getAppointmentDetails = (data: Case): DetailItem[] => [
     { icon: <Stethoscope className="h-4 w-4" />, label: "Médico", value: data.doctor },
-    { icon: <Calendar className="h-4 w-4" />, label: "Fecha de Cita", value: data.date }, // Added this line
+    { icon: <Calendar className="h-4 w-4" />, label: "Fecha de Cita", value: data.date },
     { icon: <Calendar className="h-4 w-4" />, label: "Horario", value: data.schedule },
     { icon: <MapPin className="h-4 w-4" />, label: "Consultorio", value: data.consultory },
   ]
@@ -300,21 +304,20 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               />
             </Dialog>
           )}
-          {canSchedule &&
-            caseData.status === "Pendiente" && ( // Only show if case is 'Pendiente'
-              <Dialog open={isScheduleFormOpen} onOpenChange={setIsScheduleFormOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">Agendar Cita</Button>
-                </DialogTrigger>
-                <ScheduleAppointmentForm
-                  isOpen={isScheduleFormOpen}
-                  onClose={() => setIsScheduleFormOpen(false)}
-                  onSave={handleScheduleSave}
-                  initialData={caseData}
-                />
-              </Dialog>
-            )}
-          {canAudit && (caseData.status === "Pendiente por Auditar" || caseData.status === "Auditado/Aprobado") && (
+          {canSchedule && caseData.status === "Pendiente" && (
+            <Dialog open={isScheduleFormOpen} onOpenChange={setIsScheduleFormOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white">Agendar Cita</Button>
+              </DialogTrigger>
+              <ScheduleAppointmentForm
+                isOpen={isScheduleFormOpen}
+                onClose={() => setIsScheduleFormOpen(false)}
+                onSave={handleScheduleSave}
+                initialData={caseData}
+              />
+            </Dialog>
+          )}
+          {canAudit && (caseData.status === "Pendiente por Auditar") && (
             <Dialog open={isAuditFormOpen} onOpenChange={setIsAuditFormOpen}>
               <DialogTrigger asChild>
                 <Button>Auditar Caso</Button>
@@ -324,6 +327,18 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                 onClose={() => setIsAuditFormOpen(false)}
                 onAudit={handleAuditCase}
                 initialData={caseData}
+              />
+            </Dialog>
+          )}
+          {canPreInvoice && (
+            <Dialog open={isPreInvoiceFormOpen} onOpenChange={setIsPreInvoiceFormOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-green-600 hover:bg-green-700 text-white">Prefacturar</Button>
+              </DialogTrigger>
+              <PreInvoiceDialog
+                isOpen={isPreInvoiceFormOpen}
+                onClose={() => setIsPreInvoiceFormOpen(false)}
+                caseId={caseData.id}
               />
             </Dialog>
           )}

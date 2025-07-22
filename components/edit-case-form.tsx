@@ -196,7 +196,7 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
     e.preventDefault()
     if (!initialData) return
 
-    const updates: Partial<CaseData> = {
+    const currentValues = {
       client,
       date,
       patientName,
@@ -206,13 +206,13 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
       ciTitular,
       patientOtherPhone,
       patientFixedPhone,
-      patientBirthDate: patientBirthDate || null,
-      patientAge: patientAge ? Number(patientAge) : null,
+      patientBirthDate,
+      patientAge,
       patientGender,
       collective,
       diagnosis,
       provider,
-      state, // Include the selected state
+      state,
       city,
       address,
       holderCI,
@@ -225,8 +225,143 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
       status,
     }
 
-    if (results && status !== "Pendiente por Auditar" && status !== "Auditado/Aprobado") {
-      updates.status = "Pendiente por Auditar"
+    const updates: Partial<CaseData> = {}
+    let hasChanges = false
+
+    // Compare each field with initialData and add to updates if changed
+    // Note: patientAge and dates need special handling for comparison due to type conversions or empty strings
+    if (currentValues.client !== initialData.client) {
+      updates.client = currentValues.client
+      hasChanges = true
+    }
+    if (currentValues.date !== initialData.date) {
+      updates.date = currentValues.date
+      hasChanges = true
+    }
+    if (currentValues.patientName !== initialData.patientName) {
+      updates.patientName = currentValues.patientName
+      hasChanges = true
+    }
+    if (currentValues.ciPatient !== initialData.ciPatient) {
+      updates.ciPatient = currentValues.ciPatient
+      hasChanges = true
+    }
+    if (currentValues.patientPhone !== initialData.patientPhone) {
+      updates.patientPhone = currentValues.patientPhone
+      hasChanges = true
+    }
+    if (currentValues.assignedAnalystId !== initialData.assignedAnalystId) {
+      updates.assignedAnalystId = currentValues.assignedAnalystId
+      hasChanges = true
+    }
+    if (currentValues.ciTitular !== initialData.ciTitular) {
+      updates.ciTitular = currentValues.ciTitular
+      hasChanges = true
+    }
+    if (currentValues.patientOtherPhone !== initialData.patientOtherPhone) {
+      updates.patientOtherPhone = currentValues.patientOtherPhone
+      hasChanges = true
+    }
+    if (currentValues.patientFixedPhone !== initialData.patientFixedPhone) {
+      updates.patientFixedPhone = currentValues.patientFixedPhone
+      hasChanges = true
+    }
+
+    // Handle patientBirthDate (string vs null)
+    const initialBirthDate = initialData.patientBirthDate || ""
+    const currentBirthDate = currentValues.patientBirthDate || ""
+    if (initialBirthDate !== currentBirthDate) {
+      updates.patientBirthDate = currentBirthDate || null
+      hasChanges = true
+    }
+
+    // Handle patientAge (number vs string/null)
+    const initialAge = initialData.patientAge === null ? "" : initialData.patientAge
+    const currentAge = currentValues.patientAge === null ? "" : currentValues.patientAge
+    if (String(initialAge) !== String(currentAge)) {
+      updates.patientAge = currentValues.patientAge ? Number(currentValues.patientAge) : null
+      hasChanges = true
+    }
+
+    if (currentValues.patientGender !== initialData.patientGender) {
+      updates.patientGender = currentValues.patientGender
+      hasChanges = true
+    }
+    if (currentValues.collective !== initialData.collective) {
+      updates.collective = currentValues.collective
+      hasChanges = true
+    }
+    if (currentValues.diagnosis !== initialData.diagnosis) {
+      updates.diagnosis = currentValues.diagnosis
+      hasChanges = true
+    }
+    if (currentValues.provider !== initialData.provider) {
+      updates.provider = currentValues.provider
+      hasChanges = true
+    }
+    if (currentValues.state !== initialData.state) {
+      updates.state = currentValues.state
+      hasChanges = true
+    }
+    if (currentValues.city !== initialData.city) {
+      updates.city = currentValues.city
+      hasChanges = true
+    }
+    if (currentValues.address !== initialData.address) {
+      updates.address = currentValues.address
+      hasChanges = true
+    }
+    if (currentValues.holderCI !== initialData.holderCI) {
+      updates.holderCI = currentValues.holderCI
+      hasChanges = true
+    }
+    if (currentValues.typeOfRequirement !== initialData.typeOfRequirement) {
+      updates.typeOfRequirement = currentValues.typeOfRequirement
+      hasChanges = true
+    }
+    if (currentValues.baremoId !== initialData.baremoId) {
+      updates.baremoId = currentValues.baremoId
+      hasChanges = true
+    }
+    if (currentValues.doctor !== initialData.doctor) {
+      updates.doctor = currentValues.doctor
+      hasChanges = true
+    }
+    if (currentValues.schedule !== initialData.schedule) {
+      updates.schedule = currentValues.schedule
+      hasChanges = true
+    }
+    if (currentValues.consultory !== initialData.consultory) {
+      updates.consultory = currentValues.consultory
+      hasChanges = true
+    }
+    if (currentValues.results !== initialData.results) {
+      updates.results = currentValues.results
+      hasChanges = true
+    }
+
+    // Special logic for status change based on results
+    let finalStatus = currentValues.status
+    if (
+      currentValues.results &&
+      currentValues.status !== "Pendiente por Auditar" &&
+      currentValues.status !== "Auditado/Aprobado"
+    ) {
+      finalStatus = "Pendiente por Auditar"
+    }
+    if (finalStatus !== initialData.status) {
+      updates.status = finalStatus
+      hasChanges = true
+    }
+
+    if (!hasChanges) {
+      toast({
+        title: "Información",
+        description: "No se detectaron cambios para guardar.",
+        variant: "default",
+      })
+      onClose()
+      return
     }
 
     onSave(initialData.id, updates)
@@ -315,7 +450,7 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
                   </SelectTrigger>
                   <SelectContent>
                     {analysts.length === 0 ? (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-baremos-available" disabled>
                         No hay analistas disponibles
                       </SelectItem>
                     ) : (
@@ -336,7 +471,7 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
                   </SelectTrigger>
                   <SelectContent>
                     {baremos.length === 0 ? (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="no-baremos-available" disabled>
                         No hay baremos disponibles
                       </SelectItem>
                     ) : (

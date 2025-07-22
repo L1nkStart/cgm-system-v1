@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { EditCaseForm } from "./edit-case-form"
-import { AuditCaseForm } from "@/components/audit-case-form"
-
+import { AuditCaseForm } from "./audit-case-form"
 import { InvoiceDetails } from "./invoice-details"
 import Link from "next/link"
 
@@ -103,6 +102,9 @@ export function CasesTable({
       if ((userRole === "Analista Concertado" || userRole === "Médico Auditor") && userAssignedStates.length > 0) {
         url.searchParams.append("states", userAssignedStates.join(","))
       }
+
+      // Add this line inside the fetchCases function, before the fetch call
+      console.log("CasesTable: Fetching cases from URL:", url.toString())
 
       const response = await fetch(url.toString())
       if (!response.ok) {

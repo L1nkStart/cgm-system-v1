@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { MultiSelect } from "./ui/multi-select" // Assuming you have a MultiSelect component
+import { MultiSelect } from "./ui/multi-select"
 
 // Definimos la interfaz para los datos del usuario, incluyendo el ID para edición
 interface UserData {
@@ -49,7 +49,7 @@ export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
       setName("")
       setPassword("admin") // Reset password for new user
       setRole("")
-      setAssignedStates(["all"]) // Reset assigned states to default
+      setAssignedStates([]) // Reset assigned states to default
     }
   }, [initialData])
 
@@ -225,7 +225,7 @@ export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
               </SelectContent>
             </Select>
           </div>
-          {(role === "Superusuario") && (
+          {(role !== "Jefe Financiero") && (
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="assignedStates" className="text-right pt-2">
                 Estados Asignados

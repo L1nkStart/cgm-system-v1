@@ -64,13 +64,21 @@ export async function GET(req: Request) {
 
     const session = await getSession() // Get current user session
 
+    console.log("API /api/cases GET: statesFilter from URL =", statesFilter)
+    console.log(
+      "API /api/cases GET: session.role =",
+      session?.role,
+      "session.assignedStates =",
+      session?.assignedStates,
+    )
+
     let query = `
-      SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
-      FROM cases c
-      LEFT JOIN users u ON c.assignedAnalystId = u.id
-      LEFT JOIN baremos b ON c.baremoId = b.id
-      WHERE 1=1
-    `
+    SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
+    FROM cases c
+    LEFT JOIN users u ON c.assignedAnalystId = u.id
+    LEFT JOIN baremos b ON c.baremoId = b.id
+    WHERE 1=1
+  `
     const params: any[] = []
 
     if (id) {
@@ -252,12 +260,12 @@ export async function POST(req: Request) {
 
     await pool.execute(
       `INSERT INTO cases (
-       id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
-       assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
-       cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
-       patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
-       diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
+     assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
+     cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
+     patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
+     diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId
+   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
         newCase.client,
@@ -313,6 +321,8 @@ export async function PUT(req: Request) {
     const id = searchParams.get("id")
     const updates = await req.json()
 
+    console.log("Received updates for case PUT:", updates) // For debugging
+
     if (!id) {
       return NextResponse.json({ error: "Case ID is required" }, { status: 400 })
     }
@@ -331,23 +341,27 @@ export async function PUT(req: Request) {
         ])
         const analyst = analystRows[0]
 
-        if (analyst && analyst.assignedStates) {
-          const analystStates = JSON.parse(analyst.assignedStates)
-          if (!analystStates.includes(newCaseState)) {
-            return NextResponse.json(
-              { error: `El analista asignado no puede manejar casos del estado: ${newCaseState}` },
-              { status: 400 },
-            )
+        if (analyst) {
+          // Safely parse assignedStates, handling null or empty string
+          const analystStates =
+            analyst.assignedStates && typeof analyst.assignedStates === "string" && analyst.assignedStates.length > 0
+              ? JSON.parse(analyst.assignedStates)
+              : []
+
+          if (analyst.role === "Analista Concertado" || analyst.role === "Médico Auditor") {
+            if (analystStates.length === 0) {
+              return NextResponse.json(
+                { error: `El analista asignado no tiene estados asignados y no puede manejar casos.` },
+                { status: 400 },
+              )
+            }
+            if (!analystStates.includes(newCaseState)) {
+              return NextResponse.json(
+                { error: `El analista asignado no puede manejar casos del estado: ${newCaseState}` },
+                { status: 400 },
+              )
+            }
           }
-        } else if (
-          analyst &&
-          analyst.assignedStates === null &&
-          (analyst.role === "Analista Concertado" || analyst.role === "Médico Auditor")
-        ) {
-          return NextResponse.json(
-            { error: `El analista asignado no tiene estados asignados y no puede manejar casos.` },
-            { status: 400 },
-          )
         }
       }
     }
