@@ -13,7 +13,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "CGM Sistema",
   description: "Sistema de gestión para CGM",
-  generator: 'v0.dev'
 }
 
 export default async function RootLayout({
