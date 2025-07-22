@@ -256,14 +256,14 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
 
   return (
     <div className="mt-6">
-      <div className="flex items-center justify-between mb-4">
-        <Input type="date" placeholder="Buscar por fecha" className="max-w-xs" />
-        <Button className="bg-orange-600 hover:bg-orange-700 text-white">
+      <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-2">
+        <Input type="date" placeholder="Buscar por fecha" className="w-full sm:max-w-xs" />
+        <Button className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto">
           <span className="mr-2">Exportar</span>
           <ChevronDown className="h-4 w-4" />
         </Button>
       </div>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-hidden overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -330,8 +330,8 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
                   <TableCell>
                     {/* Condicionalmente mostrar botones de acción basados en el rol */}
                     {(userRole === "Analista Concertado" && caseItem.status === "Pendiente") ||
-                    (userRole === "Médico Auditor" && caseItem.status === "Pendiente por Auditar") ||
-                    (userRole === "Jefe Financiero" && caseItem.status === "Auditado/Aprobado") ? (
+                      (userRole === "Médico Auditor" && caseItem.status === "Pendiente por Auditar") ||
+                      (userRole === "Jefe Financiero" && caseItem.status === "Auditado/Aprobado") ? (
                       <Button variant="outline" size="sm" onClick={() => handleViewEditClick(caseItem)}>
                         {userRole === "Jefe Financiero" ? "Generar Pre-factura" : "Ver / Editar"}
                       </Button>

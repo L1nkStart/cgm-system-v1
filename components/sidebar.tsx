@@ -1,6 +1,7 @@
 "use client"
 
-import type * as React from "react"
+import type React from "react"
+
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 // import { logout } from "@/lib/auth"
+import { useSidebar } from "@/components/ui/use-sidebar"
 
 interface NavItem {
   title: string
@@ -47,8 +49,17 @@ interface NavSection {
   items: NavItem[]
 }
 
-export function AppSidebar({ userRole, userEmail }: { userRole: string | null; userEmail: string | null }) {
+export function AppSidebar({
+  userRole,
+  userEmail,
+  hide,
+}: { userRole: string | null; userEmail: string | null; hide?: boolean }) {
   const pathname = usePathname()
+  const { setOpen } = useSidebar()
+
+  // Añadido para depuración:
+  console.log("AppSidebar - userRole recibido:", userRole)
+  console.log("AppSidebar - userEmail recibido:", userEmail)
 
   const navSections: NavSection[] = [
     {
@@ -147,6 +158,9 @@ export function AppSidebar({ userRole, userEmail }: { userRole: string | null; u
     }))
     .filter((section) => section.items.length > 0) // Solo mostrar secciones que tienen elementos accesibles
 
+  // Añadido para depuración:
+  console.log("AppSidebar - Secciones de navegación filtradas:", filteredNavSections)
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -186,7 +200,7 @@ export function AppSidebar({ userRole, userEmail }: { userRole: string | null; u
                   <span>{userEmail || "Usuario"}</span>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
+              <DropdownMenuContent side="top" className="w-(--radix-popper-anchor-width)">
                 <DropdownMenuItem>
                   <span>Mi Perfil</span>
                 </DropdownMenuItem>
