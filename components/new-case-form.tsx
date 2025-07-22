@@ -18,6 +18,7 @@ interface Analyst {
   email: string
   name: string
   role: string // Asegurarse de que el rol esté presente para el filtrado
+  assignedStates?: string[] // New: assigned states for the analyst
 }
 
 interface Baremo {
@@ -166,12 +167,13 @@ export function NewCaseForm() {
       !patientPhone ||
       !assignedAnalystId ||
       !typeOfRequirement ||
-      !selectedBaremoId
+      !selectedBaremoId ||
+      !state // Ensure state is selected
     ) {
       toast({
         title: "Error",
         description:
-          "Por favor, complete todos los campos requeridos: Cliente, Fecha, Nombre Paciente, CI Paciente, Teléfono Paciente, Analista Asignado, Tipo de Requerimiento y Baremo.",
+          "Por favor, complete todos los campos requeridos: Cliente, Fecha, Nombre Paciente, CI Paciente, Teléfono Paciente, Analista Asignado, Tipo de Requerimiento, Baremo y Estado del Caso.",
         variant: "destructive",
       })
       return

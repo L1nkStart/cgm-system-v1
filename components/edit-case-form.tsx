@@ -16,6 +16,7 @@ interface Analyst {
   email: string
   name: string
   role: string
+  assignedStates?: string[] // New: assigned states for the analyst
 }
 
 interface Baremo {
@@ -106,7 +107,7 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
   const [collective, setCollective] = useState(initialData?.collective || "")
   const [diagnosis, setDiagnosis] = useState(initialData?.diagnosis || "")
   const [provider, setProvider] = useState(initialData?.provider || "")
-  const [state, setState] = useState(initialData?.state || "")
+  const [state, setState] = useState(initialData?.state || "") // Estado para el estado de Venezuela
   const [city, setCity] = useState(initialData?.city || "")
   const [address, setAddress] = useState(initialData?.address || "")
   const [holderCI, setHolderCI] = useState(initialData?.holderCI || "")
@@ -211,7 +212,7 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
       collective,
       diagnosis,
       provider,
-      state,
+      state, // Include the selected state
       city,
       address,
       holderCI,
@@ -244,6 +245,33 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
     "Auditado/Rechazado",
     "Pre-facturado",
   ]
+
+  const venezuelanStates = [
+    "Amazonas",
+    "Anzoátegui",
+    "Apure",
+    "Aragua",
+    "Barinas",
+    "Bolívar",
+    "Carabobo",
+    "Cojedes",
+    "Delta Amacuro",
+    "Distrito Capital",
+    "Falcón",
+    "Guárico",
+    "La Guaira",
+    "Lara",
+    "Mérida",
+    "Miranda",
+    "Monagas",
+    "Nueva Esparta",
+    "Portuguesa",
+    "Sucre",
+    "Táchira",
+    "Trujillo",
+    "Yaracuy",
+    "Zulia",
+  ].sort() // Ordenar alfabéticamente
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -424,7 +452,18 @@ export function EditCaseForm({ isOpen, onClose, onSave, initialData }: EditCaseF
               </div>
               <div className="space-y-2">
                 <Label htmlFor="state">Estado</Label>
-                <Input id="state" value={state} onChange={(e) => setState(e.target.value)} />
+                <Select value={state} onValueChange={setState}>
+                  <SelectTrigger id="state">
+                    <SelectValue placeholder="Seleccione un estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {venezuelanStates.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="city">Ciudad</Label>

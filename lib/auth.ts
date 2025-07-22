@@ -79,19 +79,96 @@
 
 // lib/auth.ts (Actualizado para el manejo de sesión sin DB)
 // Este archivo NO DEBE importar pool directamente.
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+// import pool from "@/lib/db" // Importa el pool de conexiones
 
-import { cookies } from "next/headers"; // Solo se usa en Server Components / API Routes
-import { redirect } from "next/navigation"; // Solo se usa en Server Components / API Routes
-// Importar 'NextResponse' y 'NextRequest' si esta función se va a usar en middleware
-import type { NextRequest } from "next/server"; // Importar si se usa para el middleware
-
-const SESSION_COOKIE_NAME = "cgm_session";
+const SESSION_COOKIE_NAME = "cgm_session"
 
 interface UserSession {
-  id: string;
-  email: string;
-  role: string;
+  id: string
+  email: string
+  role: string
+  assignedStates?: string[] // Add assignedStates to the session
 }
+
+// /**
+//  * Simula el inicio de sesión de un usuario.
+//  * Ahora valida credenciales contra la base de datos.
+//  */
+// export async function login(email: string, password: string): Promise<UserSession | null> {
+//   try {
+//     const cookie = await cookies()
+//     const [rows]: any = await pool.execute(
+//       "SELECT id, email, name, role, password, assignedStates FROM users WHERE email = ?",
+//       [email],
+//     )
+//     const user = rows[0]
+
+//     if (user && user.password === password) {
+//       // En una aplicación real, usarías un hash de contraseña (ej. bcrypt)
+//       // y compararías: await bcrypt.compare(password, user.password)
+
+//       const session: UserSession = {
+//         id: user.id,
+//         email: user.email,
+//         role: user.role,
+//         assignedStates: user.assignedStates || [], // Ensure it's an array, even if null in DB
+//       }
+//       cookie.set(SESSION_COOKIE_NAME, JSON.stringify(session), {
+//         httpOnly: true,
+//         secure: process.env.NODE_ENV === "production",
+//         maxAge: 60 * 60 * 24, // 1 día
+//         path: "/",
+//       })
+//       return session
+//     }
+//     return null
+//   } catch (error) {
+//     console.error("Error during login:", error)
+//     return null
+//   }
+// }
+
+// /**
+//  * Simula el cierre de sesión.
+//  */
+// export async function logout() {
+//   const cookie = await cookies()
+//   cookie.delete(SESSION_COOKIE_NAME)
+//   redirect("/login")
+// }
+
+// /**
+//  * Obtiene la sesión del usuario actual desde las cookies.
+//  */
+// export async function getSession(): Promise<UserSession | null> {
+//   const cookie = await cookies()
+//   const sessionCookie = cookie.get(SESSION_COOKIE_NAME)
+//   if (sessionCookie) {
+//     try {
+//       const sessionData = JSON.parse(sessionCookie.value) as UserSession
+//       // Re-fetch user data from DB to ensure assignedStates is up-to-date
+//       const [rows]: any = await pool.execute("SELECT id, email, name, role, assignedStates FROM users WHERE id = ?", [
+//         sessionData.id,
+//       ])
+//       const user = rows[0]
+//       if (user) {
+//         return {
+//           id: user.id,
+//           email: user.email,
+//           role: user.role,
+//           assignedStates: user.assignedStates || [],
+//         }
+//       }
+//       return null
+//     } catch (error) {
+//       console.error("Error parsing session cookie or fetching user data:", error)
+//       return null
+//     }
+//   }
+//   return null
+// }
 
 /**
  * Obtiene la sesión del usuario actual desde las cookies.
@@ -132,24 +209,11 @@ export async function getSession(request?: NextRequest): Promise<UserSession | n
 }
 
 /**
- * Simula el cierre de sesión.
- * Solo puede ser llamado en Server Components o Server Actions (App Router)
- * o desde una API Route de logout (Pages Router o App Router).
- */
-export async function logout() {
-  const cookieStore = await cookies(); // Obtiene la instancia de cookies
-
-  cookieStore.delete(SESSION_COOKIE_NAME);
-  redirect("/login");
-}
-
-/**
  * Verifica si el usuario tiene uno de los roles requeridos.
- * Esta función no necesita ser async.
  */
 export function hasRequiredRole(userRole: string, requiredRoles: string[]): boolean {
   if (requiredRoles.length === 0) {
-    return true; // No se requieren roles específicos, acceso permitido
+    return true // No se requieren roles específicos, acceso permitido
   }
-  return requiredRoles.includes(userRole);
+  return requiredRoles.includes(userRole)
 }

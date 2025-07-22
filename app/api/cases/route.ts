@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db" // Importa el pool de conexiones
+import { getSession } from "@/lib/auth" // Import getSession
 
 // Define las interfaces para los datos (pueden estar en un archivo de tipos separado)
 interface Service {
@@ -59,6 +60,9 @@ export async function GET(req: Request) {
     const id = searchParams.get("id")
     const analystId = searchParams.get("analystId")
     const statusFilter = searchParams.get("status")
+    const statesFilter = searchParams.get("states") // New: filter by states
+
+    const session = await getSession() // Get current user session
 
     let query = `
       SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
@@ -83,6 +87,23 @@ export async function GET(req: Request) {
       params.push(...statuses)
     }
 
+    // Apply state filtering based on user role and assigned states
+    if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
+      const userAssignedStates = session.assignedStates || []
+      if (userAssignedStates.length > 0) {
+        query += ` AND c.state IN (${userAssignedStates.map(() => "?").join(",")})`
+        params.push(...userAssignedStates)
+      } else {
+        // If user has these roles but no states assigned, they should see no cases
+        query += " AND 1=0" // Force no results
+      }
+    } else if (statesFilter) {
+      // Allow filtering by states if not an analyst/auditor (e.g., for Superusuario)
+      const states = statesFilter.split(",")
+      query += ` AND c.state IN (${states.map(() => "?").join(",")})`
+      params.push(...states)
+    }
+
     const [rows]: any = await pool.execute(query, params)
 
     // Parse JSON fields and ensure correct types
@@ -101,6 +122,13 @@ export async function GET(req: Request) {
 
     if (id) {
       if (cases.length > 0) {
+        // If fetching a single case, ensure it matches the user's assigned states if applicable
+        if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
+          const userAssignedStates = session.assignedStates || []
+          if (userAssignedStates.length > 0 && !userAssignedStates.includes(cases[0].state)) {
+            return NextResponse.json({ error: "Access denied to this case based on assigned states" }, { status: 403 })
+          }
+        }
         return NextResponse.json(cases[0])
       }
       return NextResponse.json({ error: "Case not found" }, { status: 404 })
@@ -134,7 +162,7 @@ export async function POST(req: Request) {
       collective,
       diagnosis,
       provider,
-      state,
+      state, // New: case state
       city,
       address,
       holderCI,
@@ -143,8 +171,47 @@ export async function POST(req: Request) {
       baremoId, // Nuevo campo
     } = await req.json()
 
-    if (!client || !date || !patientName || !ciPatient || !patientPhone || !assignedAnalystId || !status || !baremoId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    if (
+      !client ||
+      !date ||
+      !patientName ||
+      !ciPatient ||
+      !patientPhone ||
+      !assignedAnalystId ||
+      !status ||
+      !baremoId ||
+      !state
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Missing required fields: client, date, patientName, ciPatient, patientPhone, assignedAnalystId, status, baremoId, state",
+        },
+        { status: 400 },
+      )
+    }
+
+    // Validate if the assigned analyst can handle cases from this state
+    const [analystRows]: any = await pool.execute("SELECT assignedStates FROM users WHERE id = ?", [assignedAnalystId])
+    const analyst = analystRows[0]
+    if (analyst && analyst.assignedStates) {
+      const analystStates = JSON.parse(analyst.assignedStates)
+      if (!analystStates.includes(state)) {
+        return NextResponse.json(
+          { error: `El analista asignado no puede manejar casos del estado: ${state}` },
+          { status: 400 },
+        )
+      }
+    } else if (
+      analyst &&
+      analyst.assignedStates === null &&
+      (analyst.role === "Analista Concertado" || analyst.role === "Médico Auditor")
+    ) {
+      // If analyst has no states assigned but is an analyst/auditor, they cannot be assigned cases
+      return NextResponse.json(
+        { error: `El analista asignado no tiene estados asignados y no puede manejar casos.` },
+        { status: 400 },
+      )
     }
 
     const newCase: Case = {
@@ -174,7 +241,7 @@ export async function POST(req: Request) {
       collective: collective || null,
       diagnosis: diagnosis || null,
       provider: provider || null,
-      state: state || null,
+      state: state || null, // Save case state
       city: city || null,
       address: address || null,
       holderCI: holderCI || null, // Usar el valor del formulario o null
@@ -223,7 +290,7 @@ export async function POST(req: Request) {
         newCase.collective,
         newCase.diagnosis,
         newCase.provider,
-        newCase.state,
+        newCase.state, // Save case state
         newCase.city,
         newCase.address,
         newCase.holderCI,
@@ -248,6 +315,41 @@ export async function PUT(req: Request) {
 
     if (!id) {
       return NextResponse.json({ error: "Case ID is required" }, { status: 400 })
+    }
+
+    // Validate if assignedAnalystId or state is being updated
+    if (updates.assignedAnalystId || updates.state) {
+      const [currentCaseRows]: any = await pool.execute("SELECT assignedAnalystId, state FROM cases WHERE id = ?", [id])
+      const currentCase = currentCaseRows[0]
+
+      const newAssignedAnalystId = updates.assignedAnalystId || currentCase.assignedAnalystId
+      const newCaseState = updates.state || currentCase.state
+
+      if (newAssignedAnalystId && newCaseState) {
+        const [analystRows]: any = await pool.execute("SELECT assignedStates, role FROM users WHERE id = ?", [
+          newAssignedAnalystId,
+        ])
+        const analyst = analystRows[0]
+
+        if (analyst && analyst.assignedStates) {
+          const analystStates = JSON.parse(analyst.assignedStates)
+          if (!analystStates.includes(newCaseState)) {
+            return NextResponse.json(
+              { error: `El analista asignado no puede manejar casos del estado: ${newCaseState}` },
+              { status: 400 },
+            )
+          }
+        } else if (
+          analyst &&
+          analyst.assignedStates === null &&
+          (analyst.role === "Analista Concertado" || analyst.role === "Médico Auditor")
+        ) {
+          return NextResponse.json(
+            { error: `El analista asignado no tiene estados asignados y no puede manejar casos.` },
+            { status: 400 },
+          )
+        }
+      }
     }
 
     const updateFields: string[] = []

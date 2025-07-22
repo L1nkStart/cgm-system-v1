@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { EditCaseForm } from "./edit-case-form"
-import { AuditCaseForm } from "./audit-case-form"
+import { AuditCaseForm } from "@/components/audit-case-form"
+
 import { InvoiceDetails } from "./invoice-details"
 import Link from "next/link"
 
@@ -53,7 +54,7 @@ interface CaseData {
   collective?: string
   diagnosis?: string
   provider?: string // This is the "Proveedor" in the image
-  state?: string
+  state?: string // Case state
   city?: string
   address?: string
   holderCI?: string
@@ -62,12 +63,22 @@ interface CaseData {
 }
 
 interface CasesTableProps {
-  fetchUrl: string
+  fetchUrl?: string // Make optional, as it might be constructed dynamically
   showAnalystColumn?: boolean
   userRole?: "Analista Concertado" | "Médico Auditor" | "Superusuario" | "Coordinador Regional" | "Jefe Financiero"
+  analystId?: string // For analyst-specific dashboard
+  statusFilter?: string // For auditor-specific dashboard or cancelled cases
+  userAssignedStates?: string[] // New prop: states assigned to the current user
 }
 
-export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: CasesTableProps) {
+export function CasesTable({
+  fetchUrl = "/api/cases", // Default fetch URL
+  showAnalystColumn = false,
+  userRole,
+  analystId,
+  statusFilter,
+  userAssignedStates = [], // Default to empty array
+}: CasesTableProps) {
   const [cases, setCases] = useState<CaseData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -81,7 +92,19 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(fetchUrl)
+      const url = new URL(fetchUrl, window.location.origin)
+      if (analystId) {
+        url.searchParams.append("analystId", analystId)
+      }
+      if (statusFilter) {
+        url.searchParams.append("status", statusFilter)
+      }
+      // Add userAssignedStates to filter if the user is an analyst or auditor
+      if ((userRole === "Analista Concertado" || userRole === "Médico Auditor") && userAssignedStates.length > 0) {
+        url.searchParams.append("states", userAssignedStates.join(","))
+      }
+
+      const response = await fetch(url.toString())
       if (!response.ok) {
         throw new Error("Failed to fetch cases")
       }
@@ -101,7 +124,7 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
 
   useEffect(() => {
     fetchCases()
-  }, [fetchUrl])
+  }, [fetchUrl, analystId, statusFilter, userAssignedStates]) // Re-fetch when these props change
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -276,6 +299,7 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
               <TableHead>Nombre Paciente</TableHead>
               <TableHead>Teléfono Paciente</TableHead>
               <TableHead>Tipo de requerimiento</TableHead>
+              <TableHead>Estado Caso</TableHead> {/* New column for case state */}
               {showAnalystColumn && <TableHead>Analista Asignado</TableHead>}
               <TableHead>Médico</TableHead>
               <TableHead>Horario</TableHead>
@@ -295,7 +319,7 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
             {cases.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={userRole === "Jefe Financiero" ? 18 : showAnalystColumn ? 15 : 14}
+                  colSpan={userRole === "Jefe Financiero" ? 19 : showAnalystColumn ? 16 : 15} // Adjusted colspan
                   className="text-center py-4"
                 >
                   No hay casos registrados.
@@ -313,6 +337,7 @@ export function CasesTable({ fetchUrl, showAnalystColumn = false, userRole }: Ca
                   <TableCell>{caseItem.patientName}</TableCell>
                   <TableCell>{caseItem.patientPhone}</TableCell>
                   <TableCell>{caseItem.typeOfRequirement || "N/A"}</TableCell>
+                  <TableCell>{caseItem.state || "N/A"}</TableCell> {/* Display case state */}
                   {showAnalystColumn && <TableCell>{caseItem.assignedAnalystName}</TableCell>}
                   <TableCell>{caseItem.doctor || "N/A"}</TableCell>
                   <TableCell>{caseItem.schedule || "N/A"}</TableCell>

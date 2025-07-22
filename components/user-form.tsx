@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { MultiSelect } from "./ui/multi-select" // Assuming you have a MultiSelect component
 
 // Definimos la interfaz para los datos del usuario, incluyendo el ID para edición
 interface UserData {
@@ -17,6 +18,7 @@ interface UserData {
   name: string // Añadido el campo name
   role: string
   password?: string
+  assignedStates?: string[] // New field for assigned states
 }
 
 interface UserFormProps {
@@ -30,6 +32,7 @@ export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
   const [name, setName] = useState(initialData?.name || "") // Estado para el nombre
   const [password, setPassword] = useState("")
   const [role, setRole] = useState(initialData?.role || "")
+  const [assignedStates, setAssignedStates] = useState<string[]>(initialData?.assignedStates || []) // State for assigned states
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
 
@@ -39,16 +42,45 @@ export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
       setEmail(initialData.email)
       setName(initialData.name)
       setRole(initialData.role)
-      setPassword("********") // No precargar la contraseña por seguridad
+      setAssignedStates(initialData.assignedStates || [])
+      setPassword("admin") // No precargar la contraseña por seguridad
     } else {
       setEmail("")
       setName("")
-      setPassword("")
+      setPassword("admin") // Reset password for new user
       setRole("")
+      setAssignedStates(["all"]) // Reset assigned states to default
     }
   }, [initialData])
 
   const roles = ["Superusuario", "Coordinador Regional", "Analista Concertado", "Médico Auditor", "Jefe Financiero"]
+
+  const venezuelanStates = [
+    "Amazonas",
+    "Anzoátegui",
+    "Apure",
+    "Aragua",
+    "Barinas",
+    "Bolívar",
+    "Carabobo",
+    "Cojedes",
+    "Delta Amacuro",
+    "Distrito Capital",
+    "Falcón",
+    "Guárico",
+    "La Guaira",
+    "Lara",
+    "Mérida",
+    "Miranda",
+    "Monagas",
+    "Nueva Esparta",
+    "Portuguesa",
+    "Sucre",
+    "Táchira",
+    "Trujillo",
+    "Yaracuy",
+    "Zulia",
+  ].sort()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,9 +96,27 @@ export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
       return
     }
 
+    // Validate assignedStates for specific roles
+    if ((role === "Analista Concertado" || role === "Médico Auditor") && assignedStates.length === 0) {
+      toast({
+        title: "Error",
+        description: "Para el rol seleccionado, debe asignar al menos un estado.",
+        variant: "destructive",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       let response
       const userDataToSave: Partial<UserData> = { email, name, role }
+
+      // Only include assignedStates if the role requires it
+      if (role === "Analista Concertado" || role === "Médico Auditor") {
+        userDataToSave.assignedStates = assignedStates
+      } else {
+        userDataToSave.assignedStates = [] // Ensure it's an empty array for other roles
+      }
 
       if (initialData) {
         // Es una edición
@@ -175,6 +225,21 @@ export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
               </SelectContent>
             </Select>
           </div>
+          {(role === "Superusuario") && (
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label htmlFor="assignedStates" className="text-right pt-2">
+                Estados Asignados
+              </Label>
+              <div className="col-span-3">
+                <MultiSelect
+                  options={venezuelanStates.map((state) => ({ label: state, value: state }))}
+                  selected={assignedStates}
+                  onSelectedChange={setAssignedStates}
+                  placeholder="Seleccione estados..."
+                />
+              </div>
+            </div>
+          )}
           <DialogFooter>
             <Button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white" disabled={isSubmitting}>
               {isSubmitting ? "Guardando..." : initialData ? "Guardar Cambios" : "Crear Usuario"}

@@ -4,8 +4,16 @@ import pool from "@/lib/db" // Importa el pool de conexiones
 
 export async function GET() {
   try {
-    const [rows] = await pool.query("SELECT id, email, name, role FROM users")
-    return NextResponse.json(rows)
+    const [rows]: any = await pool.query("SELECT id, email, name, role, assignedStates FROM users")
+    // Parse assignedStates from JSON string to array, handling empty strings
+    const users = rows.map((user: any) => ({
+      ...user,
+      assignedStates:
+        typeof user.assignedStates === "string" && user.assignedStates.length > 0
+          ? JSON.parse(user.assignedStates)
+          : [],
+    }))
+    return NextResponse.json(users)
   } catch (error) {
     console.error("Error fetching users:", error)
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 })
@@ -14,7 +22,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { email, name, role, password } = await req.json()
+    const { email, name, role, password, assignedStates } = await req.json()
 
     if (!email || !name || !role || !password) {
       return NextResponse.json({ error: "Email, name, role, and password are required" }, { status: 400 })
@@ -26,14 +34,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User with this email already exists" }, { status: 409 })
     }
 
-    const newUser = { id: uuidv4(), email, name, role, password }
-    await pool.execute("INSERT INTO users (id, email, name, role, password) VALUES (?, ?, ?, ?, ?)", [
-      newUser.id,
-      newUser.email,
-      newUser.name,
-      newUser.role,
-      newUser.password,
-    ])
+    const newUser = {
+      id: uuidv4(),
+      email,
+      name,
+      role,
+      password,
+      assignedStates: assignedStates ? JSON.stringify(assignedStates) : null, // Stringify assignedStates
+    }
+    await pool.execute(
+      "INSERT INTO users (id, email, name, role, password, assignedStates) VALUES (?, ?, ?, ?, ?, ?)",
+      [newUser.id, newUser.email, newUser.name, newUser.role, newUser.password, newUser.assignedStates],
+    )
 
     const { password: _, ...userWithoutPassword } = newUser // Excluir password de la respuesta
     return NextResponse.json(userWithoutPassword, { status: 201 })
@@ -47,7 +59,7 @@ export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
-    const { email, name, role, password } = await req.json()
+    const { email, name, role, password, assignedStates } = await req.json()
 
     if (!id) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
@@ -72,6 +84,11 @@ export async function PUT(req: Request) {
       updates.push("password = ?")
       values.push(password)
     }
+    if (assignedStates !== undefined) {
+      // Check for undefined to allow setting to empty array
+      updates.push("assignedStates = ?")
+      values.push(assignedStates ? JSON.stringify(assignedStates) : null) // Stringify assignedStates
+    }
 
     if (updates.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 })
@@ -85,8 +102,19 @@ export async function PUT(req: Request) {
     }
 
     // Fetch the updated user to return
-    const [updatedUserRows]: any = await pool.execute("SELECT id, email, name, role FROM users WHERE id = ?", [id])
-    return NextResponse.json(updatedUserRows[0])
+    const [updatedUserRows]: any = await pool.execute(
+      "SELECT id, email, name, role, assignedStates FROM users WHERE id = ?",
+      [id],
+    )
+    const updatedUser = {
+      ...updatedUserRows[0],
+      // Parse assignedStates from JSON string to array, handling empty strings
+      assignedStates:
+        typeof updatedUserRows[0].assignedStates === "string" && updatedUserRows[0].assignedStates.length > 0
+          ? JSON.parse(updatedUserRows[0].assignedStates)
+          : [],
+    }
+    return NextResponse.json(updatedUser)
   } catch (error) {
     console.error("Error updating user:", error)
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
