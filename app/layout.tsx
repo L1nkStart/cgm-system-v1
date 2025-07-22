@@ -3,9 +3,6 @@ import type { Metadata } from "next/types"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AppSidebar } from "@/components/sidebar"
-import DashboardHeader from "@/components/dashboard-header"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { getSession } from "@/lib/auth" // Importa getSession
 
 const inter = Inter({ subsets: ["latin"] })

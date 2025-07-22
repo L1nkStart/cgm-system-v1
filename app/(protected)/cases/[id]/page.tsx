@@ -6,12 +6,27 @@ import { CaseDetailSection } from "@/components/case-detail-section"
 import { AttendedServicesTable } from "@/components/attended-services-table"
 import { EditCaseForm } from "@/components/edit-case-form"
 import { AuditCaseForm } from "@/components/audit-case-form"
+import { ScheduleAppointmentForm } from "@/components/schedule-appointment-form" // Import the new form
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
-import { User, Calendar, Hash, Phone, Mail, UserCog, Tag, Stethoscope, MapPin, Cake, ClipboardList } from "lucide-react"
+import {
+  User,
+  Calendar,
+  Hash,
+  Phone,
+  Mail,
+  UserCog,
+  Tag,
+  Stethoscope,
+  MapPin,
+  Cake,
+  ClipboardList,
+  Scale,
+} from "lucide-react"
+import { useToast } from "@/hooks/use-toast" // Import useToast
 
 interface Service {
   name: string
@@ -59,6 +74,8 @@ interface Case {
   holderCI?: string
   services?: Service[]
   typeOfRequirement?: string
+  baremoId?: string
+  baremoName?: string
 }
 
 interface DetailItem {
@@ -73,7 +90,9 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
   const [isAuditFormOpen, setIsAuditFormOpen] = useState(false)
+  const [isScheduleFormOpen, setIsScheduleFormOpen] = useState(false) // New state for schedule form
   const [userRole, setUserRole] = useState<string | null>(null)
+  const { toast } = useToast() // Initialize useToast
 
   useEffect(() => {
     fetchCaseData()
@@ -91,6 +110,11 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error("Error fetching case data:", error)
       setCaseData(null)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los detalles del caso.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -109,10 +133,102 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const handleSave = async () => {
-    await fetchCaseData() // Refresh data after save
-    setIsEditFormOpen(false)
-    setIsAuditFormOpen(false)
+  const handleSaveEditedCase = async (caseId: string, updates: Partial<Case>) => {
+    try {
+      const response = await fetch(`/api/cases?id=${caseId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update case")
+      }
+
+      toast({
+        title: "Éxito",
+        description: "Caso actualizado correctamente.",
+      })
+      fetchCaseData() // Refresh the list
+      setIsEditFormOpen(false)
+    } catch (err: any) {
+      console.error("Error saving edited case:", err)
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo actualizar el caso.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAuditCase = async (caseId: string, newStatus: string, auditNotes?: string) => {
+    try {
+      const updates: Partial<Case> = { status: newStatus }
+      if (auditNotes) {
+        updates.auditNotes = auditNotes
+      }
+
+      const response = await fetch(`/api/cases?id=${caseId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to audit case")
+      }
+
+      toast({
+        title: "Éxito",
+        description: `Caso ${newStatus === "Auditado/Aprobado" ? "aprobado" : "rechazado"} por auditoría.`,
+      })
+      fetchCaseData() // Refresh the list
+      setIsAuditFormOpen(false)
+    } catch (err: any) {
+      console.error("Error auditing case:", err)
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo auditar el caso.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleScheduleSave = async (caseId: string, updates: Partial<Case>) => {
+    try {
+      const response = await fetch(`/api/cases?id=${caseId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to schedule appointment")
+      }
+
+      toast({
+        title: "Éxito",
+        description: "Cita agendada correctamente.",
+      })
+      fetchCaseData() // Refresh the case data
+      setIsScheduleFormOpen(false)
+    } catch (err: any) {
+      console.error("Error scheduling appointment:", err)
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo agendar la cita.",
+        variant: "destructive",
+      })
+    }
   }
 
   if (!caseData) {
@@ -121,6 +237,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
 
   const canEdit = userRole === "Superusuario" || userRole === "Coordinador Regional"
   const canAudit = userRole === "Superusuario" || userRole === "Médico Auditor"
+  const canSchedule = userRole === "Superusuario" || userRole === "Analista Concertado"
 
   // Function to prepare general case details
   const getGeneralDetails = (data: Case): DetailItem[] => [
@@ -135,6 +252,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     { icon: <UserCog className="h-4 w-4" />, label: "Analista Asignado", value: data.assignedAnalystName },
     { icon: <Tag className="h-4 w-4" />, label: "Estado", value: data.status },
     { icon: <ClipboardList className="h-4 w-4" />, label: "Tipo de Requerimiento", value: data.typeOfRequirement },
+    { icon: <Scale className="h-4 w-4" />, label: "Baremo Asignado", value: data.baremoName || "N/A" },
   ]
 
   // Function to prepare additional patient/creator details
@@ -159,6 +277,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   // Function to prepare appointment details
   const getAppointmentDetails = (data: Case): DetailItem[] => [
     { icon: <Stethoscope className="h-4 w-4" />, label: "Médico", value: data.doctor },
+    { icon: <Calendar className="h-4 w-4" />, label: "Fecha de Cita", value: data.date }, // Added this line
     { icon: <Calendar className="h-4 w-4" />, label: "Horario", value: data.schedule },
     { icon: <MapPin className="h-4 w-4" />, label: "Consultorio", value: data.consultory },
   ]
@@ -173,47 +292,39 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <DialogTrigger asChild>
                 <Button variant="outline">Editar Caso</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[800px]">
-                <DialogHeader>
-                  <DialogTitle>Editar Detalles del Caso</DialogTitle>
-                </DialogHeader>
-                {/* Pass initialData and onSave directly to EditCaseForm */}
-                <EditCaseForm
-                  isOpen={isEditFormOpen}
-                  onClose={() => setIsEditFormOpen(false)}
-                  onSave={(caseId, updates) => {
-                    // This logic should be handled by the form itself or a dedicated action
-                    // For now, we'll just refresh data and close
-                    fetchCaseData()
-                    setIsEditFormOpen(false)
-                  }}
-                  initialData={caseData}
-                />
-              </DialogContent>
+              <EditCaseForm
+                isOpen={isEditFormOpen}
+                onClose={() => setIsEditFormOpen(false)}
+                onSave={handleSaveEditedCase}
+                initialData={caseData}
+              />
             </Dialog>
           )}
+          {canSchedule &&
+            caseData.status === "Pendiente" && ( // Only show if case is 'Pendiente'
+              <Dialog open={isScheduleFormOpen} onOpenChange={setIsScheduleFormOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">Agendar Cita</Button>
+                </DialogTrigger>
+                <ScheduleAppointmentForm
+                  isOpen={isScheduleFormOpen}
+                  onClose={() => setIsScheduleFormOpen(false)}
+                  onSave={handleScheduleSave}
+                  initialData={caseData}
+                />
+              </Dialog>
+            )}
           {canAudit && (caseData.status === "Pendiente por Auditar" || caseData.status === "Auditado/Aprobado") && (
             <Dialog open={isAuditFormOpen} onOpenChange={setIsAuditFormOpen}>
               <DialogTrigger asChild>
                 <Button>Auditar Caso</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[800px]">
-                <DialogHeader>
-                  <DialogTitle>Auditar Caso</DialogTitle>
-                </DialogHeader>
-                {/* Pass initialData and onAudit directly to AuditCaseForm */}
-                <AuditCaseForm
-                  isOpen={isAuditFormOpen}
-                  onClose={() => setIsAuditFormOpen(false)}
-                  onAudit={(caseId, newStatus, auditNotes) => {
-                    // This logic should be handled by the form itself or a dedicated action
-                    // For now, we'll just refresh data and close
-                    fetchCaseData()
-                    setIsAuditFormOpen(false)
-                  }}
-                  initialData={caseData}
-                />
-              </DialogContent>
+              <AuditCaseForm
+                isOpen={isAuditFormOpen}
+                onClose={() => setIsAuditFormOpen(false)}
+                onAudit={handleAuditCase}
+                initialData={caseData}
+              />
             </Dialog>
           )}
         </div>
@@ -238,18 +349,12 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <CardTitle>Servicios Atendidos</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* AttendedServicesTable needs caseId, services, onUpdateServices, onAddRequirement */}
               <AttendedServicesTable
                 services={caseData.services || []}
+                baremoId={caseData.baremoId || null}
+                caseId={caseData.id}
                 onUpdateServices={(updatedServices) => {
-                  // This would typically trigger a PUT request to update services
-                  console.log("Updated services:", updatedServices)
-                  // For now, just update local state if needed, or refetch
-                  // setCaseData(prev => prev ? { ...prev, services: updatedServices } : null);
-                }}
-                onAddRequirement={() => {
-                  console.log("Add requirement clicked")
-                  // Logic to add a new requirement
+                  setCaseData((prev) => (prev ? { ...prev, services: updatedServices } : null))
                 }}
               />
             </CardContent>

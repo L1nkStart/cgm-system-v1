@@ -49,6 +49,8 @@ interface Case {
   holderCI?: string
   services?: Service[]
   typeOfRequirement?: string
+  baremoId?: string // Nuevo campo para el ID del baremo
+  baremoName?: string // Para display, no en DB directamente
 }
 
 export async function GET(req: Request) {
@@ -58,8 +60,13 @@ export async function GET(req: Request) {
     const analystId = searchParams.get("analystId")
     const statusFilter = searchParams.get("status")
 
-    let query =
-      "SELECT c.*, u.name AS assignedAnalystName FROM cases c LEFT JOIN users u ON c.assignedAnalystId = u.id WHERE 1=1"
+    let query = `
+      SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
+      FROM cases c
+      LEFT JOIN users u ON c.assignedAnalystId = u.id
+      LEFT JOIN baremos b ON c.baremoId = b.id
+      WHERE 1=1
+    `
     const params: any[] = []
 
     if (id) {
@@ -82,7 +89,7 @@ export async function GET(req: Request) {
     const cases = rows.map((row: any) => ({
       ...row,
       // Modificación aquí: Solo parsear si row.services es una cadena no vacía
-      services: row.services && row.services.length > 0 ? JSON.parse(row.services) : [],
+      services: row.services || [],
       // Convert Date objects to string if needed for consistency with mock
       date: row.date ? new Date(row.date).toISOString().split("T")[0] : null,
       patientBirthDate: row.patientBirthDate ? new Date(row.patientBirthDate).toISOString().split("T")[0] : null,
@@ -133,9 +140,10 @@ export async function POST(req: Request) {
       holderCI,
       services,
       typeOfRequirement,
+      baremoId, // Nuevo campo
     } = await req.json()
 
-    if (!client || !date || !patientName || !ciPatient || !patientPhone || !assignedAnalystId || !status) {
+    if (!client || !date || !patientName || !ciPatient || !patientPhone || !assignedAnalystId || !status || !baremoId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
@@ -161,7 +169,7 @@ export async function POST(req: Request) {
       patientOtherPhone: patientOtherPhone || null, // Usar null si está vacío
       patientFixedPhone: patientFixedPhone || null, // Usar null si está vacío
       patientBirthDate: patientBirthDate || null,
-      patientAge: patientAge || null,
+      patientAge: patientAge ? Number(patientAge) : null,
       patientGender: patientGender || null,
       collective: collective || null,
       diagnosis: diagnosis || null,
@@ -172,6 +180,7 @@ export async function POST(req: Request) {
       holderCI: holderCI || null, // Usar el valor del formulario o null
       services: services || [],
       typeOfRequirement: typeOfRequirement || "CONSULTA",
+      baremoId, // Incluir el baremoId
     }
 
     await pool.execute(
@@ -180,8 +189,8 @@ export async function POST(req: Request) {
        assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
        cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
        patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
-       diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
         newCase.client,
@@ -220,6 +229,7 @@ export async function POST(req: Request) {
         newCase.holderCI,
         JSON.stringify(newCase.services),
         newCase.typeOfRequirement,
+        newCase.baremoId, // Añadir baremoId a los valores
       ],
     )
 
@@ -247,7 +257,7 @@ export async function PUT(req: Request) {
       if (updates.hasOwnProperty(key)) {
         if (key === "services") {
           updateFields.push(`${key} = ?`)
-          values.push(JSON.stringify(updates[key])) // Stringify JSON field
+          values.push(JSON.stringify(updates[key])) // Stringify JSON field when sending to DB
         } else {
           updateFields.push(`${key} = ?`)
           values.push(updates[key])
@@ -270,10 +280,8 @@ export async function PUT(req: Request) {
     const [updatedCaseRows]: any = await pool.execute("SELECT * FROM cases WHERE id = ?", [id])
     const updatedCase = {
       ...updatedCaseRows[0],
-      services:
-        updatedCaseRows[0].services && updatedCaseRows[0].services.length > 0
-          ? JSON.parse(updatedCaseRows[0].services)
-          : [],
+      // REMOVED JSON.parse(): services is already an object/array from the DB
+      services: updatedCaseRows[0].services || [],
       date: updatedCaseRows[0].date ? new Date(updatedCaseRows[0].date).toISOString().split("T")[0] : null,
       patientBirthDate: updatedCaseRows[0].patientBirthDate
         ? new Date(updatedCaseRows[0].patientBirthDate).toISOString().split("T")[0]

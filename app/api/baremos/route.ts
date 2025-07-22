@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     // Parse JSON fields and ensure correct types
     const baremos = rows.map((row: any) => ({
       ...row,
-      procedures: row.procedures ? JSON.parse(row.procedures) : [],
+      procedures: row.procedures || [],
       effectiveDate: row.effectiveDate ? new Date(row.effectiveDate).toISOString().split("T")[0] : null,
     }))
 
@@ -129,7 +129,7 @@ export async function PUT(req: Request) {
     const [updatedBaremoRows]: any = await pool.execute("SELECT * FROM baremos WHERE id = ?", [id])
     const updatedBaremo = {
       ...updatedBaremoRows[0],
-      procedures: updatedBaremoRows[0].procedures ? JSON.parse(updatedBaremoRows[0].procedures) : [],
+      procedures: updatedBaremoRows[0].procedures || [],
       effectiveDate: updatedBaremoRows[0].effectiveDate
         ? new Date(updatedBaremoRows[0].effectiveDate).toISOString().split("T")[0]
         : null,

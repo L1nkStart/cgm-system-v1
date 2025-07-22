@@ -230,6 +230,7 @@ export default function ClientBaremosPage({ params }: { params: { clientName: st
                     <Input
                       type="number"
                       value={procedure.cost}
+                      readOnly={true}
                       onChange={(e) =>
                         handlePriceChange(procedure.baremoId, allProcedures.indexOf(procedure), e.target.value)
                       }

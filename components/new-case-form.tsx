@@ -11,12 +11,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea" // Importar Textarea
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { MinusCircle } from "lucide-react" // Importar MinusCircle
 
 interface Analyst {
   id: string
   email: string
   name: string
   role: string // Asegurarse de que el rol esté presente para el filtrado
+}
+
+interface Baremo {
+  id: string
+  name: string
+  clinicName: string
+  effectiveDate: string
+  procedures: Procedure[]
+}
+
+interface Procedure {
+  name: string
+  cost: number
+  isActive: boolean
+  type: string
+}
+
+interface Service {
+  name: string
+  type: string
+  amount: number
+  attended: boolean
 }
 
 export function NewCaseForm() {
@@ -38,17 +61,24 @@ export function NewCaseForm() {
   const [collective, setCollective] = useState("")
   const [diagnosis, setDiagnosis] = useState("")
   const [provider, setProvider] = useState("")
-  const [state, setState] = useState("")
+  const [state, setState] = useState("") // Estado para el estado de Venezuela
   const [city, setCity] = useState("")
   const [address, setAddress] = useState("")
   const [holderCI, setHolderCI] = useState("")
   const [typeOfRequirement, setTypeOfRequirement] = useState("")
+
+  // Estados para la gestión de baremos y procedimientos
+  const [baremos, setBaremos] = useState<Baremo[]>([])
+  const [selectedBaremoId, setSelectedBaremoId] = useState("")
+  const [selectedBaremoProcedures, setSelectedBaremoProcedures] = useState<Procedure[]>([]) // Procedimientos activos del baremo seleccionado
+  const [caseProcedures, setCaseProcedures] = useState<Service[]>([]) // Procedimientos añadidos a este caso
 
   const { toast } = useToast()
   const router = useRouter()
 
   useEffect(() => {
     fetchAnalysts()
+    fetchBaremos() // Fetch baremos on component mount
   }, [])
 
   const fetchAnalysts = async () => {
@@ -70,14 +100,87 @@ export function NewCaseForm() {
     }
   }
 
+  const fetchBaremos = async () => {
+    try {
+      const response = await fetch("/api/baremos")
+      if (!response.ok) {
+        throw new Error("Failed to fetch baremos")
+      }
+      const data: Baremo[] = await response.json()
+      setBaremos(data)
+    } catch (error) {
+      console.error("Error fetching baremos:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los baremos.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleBaremoChange = (baremoId: string) => {
+    setSelectedBaremoId(baremoId)
+    const baremo = baremos.find((b) => b.id === baremoId)
+    if (baremo) {
+      setSelectedBaremoProcedures(baremo.procedures.filter((p) => p.isActive)) // Solo procedimientos activos
+      setCaseProcedures([]) // Resetear procedimientos del caso cuando el baremo cambia
+    } else {
+      setSelectedBaremoProcedures([])
+      setCaseProcedures([])
+    }
+  }
+
+  const handleAddProcedureToCase = (procedure: Procedure) => {
+    // Verificar si el procedimiento ya fue añadido
+    if (!caseProcedures.some((p) => p.name === procedure.name && p.type === procedure.type)) {
+      setCaseProcedures((prev) => [
+        ...prev,
+        {
+          name: procedure.name,
+          type: procedure.type,
+          amount: procedure.cost,
+          attended: false, // Por defecto no atendido
+        },
+      ])
+    } else {
+      toast({
+        title: "Advertencia",
+        description: `El procedimiento "${procedure.name}" ya ha sido añadido.`,
+        variant: "default",
+      })
+    }
+  }
+
+  const handleRemoveProcedureFromCase = (index: number) => {
+    setCaseProcedures((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!client || !date || !patientName || !ciPatient || !patientPhone || !assignedAnalystId || !typeOfRequirement) {
+    if (
+      !client ||
+      !date ||
+      !patientName ||
+      !ciPatient ||
+      !patientPhone ||
+      !assignedAnalystId ||
+      !typeOfRequirement ||
+      !selectedBaremoId
+    ) {
       toast({
         title: "Error",
         description:
-          "Por favor, complete todos los campos requeridos: Cliente, Fecha, Nombre Paciente, CI Paciente, Teléfono Paciente, Analista Asignado y Tipo de Requerimiento.",
+          "Por favor, complete todos los campos requeridos: Cliente, Fecha, Nombre Paciente, CI Paciente, Teléfono Paciente, Analista Asignado, Tipo de Requerimiento y Baremo.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (caseProcedures.length === 0) {
+      toast({
+        title: "Error",
+        description: "Debe añadir al menos un procedimiento al caso.",
         variant: "destructive",
       })
       return
@@ -106,12 +209,13 @@ export function NewCaseForm() {
           collective,
           diagnosis,
           provider,
-          state,
+          state, // Incluir el estado seleccionado
           city,
           address,
           holderCI,
+          services: caseProcedures, // Usar los procedimientos seleccionados para este caso
           typeOfRequirement,
-          services: [], // Inicializar servicios como un array vacío
+          baremoId: selectedBaremoId, // Incluir el ID del baremo seleccionado
         }),
       })
 
@@ -146,6 +250,9 @@ export function NewCaseForm() {
       setAddress("")
       setHolderCI("")
       setTypeOfRequirement("")
+      setSelectedBaremoId("")
+      setSelectedBaremoProcedures([])
+      setCaseProcedures([])
 
       router.push("/dashboard") // Redirigir al dashboard después del registro exitoso
     } catch (error: any) {
@@ -157,6 +264,33 @@ export function NewCaseForm() {
       })
     }
   }
+
+  const venezuelanStates = [
+    "Amazonas",
+    "Anzoátegui",
+    "Apure",
+    "Aragua",
+    "Barinas",
+    "Bolívar",
+    "Carabobo",
+    "Cojedes",
+    "Delta Amacuro",
+    "Distrito Capital",
+    "Falcón",
+    "Guárico",
+    "La Guaira",
+    "Lara",
+    "Mérida",
+    "Miranda",
+    "Monagas",
+    "Nueva Esparta",
+    "Portuguesa",
+    "Sucre",
+    "Táchira",
+    "Trujillo",
+    "Yaracuy",
+    "Zulia",
+  ].sort() // Ordenar alfabéticamente
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -200,11 +334,9 @@ export function NewCaseForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {analysts.length === 0 ? (
-                      // Usamos un <p> en lugar de <SelectItem> para mostrar el mensaje.
-                      // Las clases de Tailwind le dan un estilo similar al del resto de la UI.
-                      <p className="p-4 text-center text-sm text-muted-foreground">
+                      <SelectItem value="" disabled>
                         No hay analistas disponibles
-                      </p>
+                      </SelectItem>
                     ) : (
                       analysts.map((analyst) => (
                         <SelectItem key={analyst.id} value={analyst.id}>
@@ -215,7 +347,93 @@ export function NewCaseForm() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="baremo">Baremo Asignado</Label>
+                <Select value={selectedBaremoId} onValueChange={handleBaremoChange} required>
+                  <SelectTrigger id="baremo">
+                    <SelectValue placeholder="Seleccione un baremo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {baremos.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        No hay baremos disponibles
+                      </SelectItem>
+                    ) : (
+                      baremos.map((baremo) => (
+                        <SelectItem key={baremo.id} value={baremo.id}>
+                          {baremo.name} ({baremo.clinicName})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+          </div>
+
+          {/* Sección de Procedimientos del Caso */}
+          <div className="space-y-2 col-span-full mt-6">
+            <h3 className="text-lg font-semibold">Procedimientos del Caso</h3>
+            {selectedBaremoId ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedBaremoProcedures.length === 0 ? (
+                    <p className="text-muted-foreground col-span-full">No hay procedimientos activos en este baremo.</p>
+                  ) : (
+                    <div className="col-span-full border rounded-md p-3">
+                      <h4 className="font-medium mb-2">Procedimientos disponibles del baremo seleccionado:</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                        {selectedBaremoProcedures.map((procedure, index) => (
+                          <Button
+                            key={index}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddProcedureToCase(procedure)}
+                            className="justify-between"
+                          >
+                            <span>
+                              {procedure.name} ({procedure.type})
+                            </span>
+                            <span className="font-semibold">${procedure.cost.toFixed(2)}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="border rounded-md p-3 mt-4">
+                  <h4 className="font-medium mb-2">Procedimientos asignados a este caso:</h4>
+                  {caseProcedures.length === 0 ? (
+                    <p className="text-muted-foreground">Aún no se han añadido procedimientos a este caso.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {caseProcedures.map((proc, index) => (
+                        <li
+                          key={index}
+                          className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-2 rounded-md"
+                        >
+                          <span>
+                            {proc.name} ({proc.type}) - ${proc.amount.toFixed(2)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveProcedureFromCase(index)}
+                            aria-label="Eliminar procedimiento del caso"
+                          >
+                            <MinusCircle className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">Seleccione un baremo para ver y añadir procedimientos.</p>
+            )}
           </div>
 
           {/* Sección de Datos del Paciente */}
@@ -318,7 +536,18 @@ export function NewCaseForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="state">Estado</Label>
-                <Input id="state" value={state} onChange={(e) => setState(e.target.value)} />
+                <Select value={state} onValueChange={setState}>
+                  <SelectTrigger id="state">
+                    <SelectValue placeholder="Seleccione un estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {venezuelanStates.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="city">Ciudad</Label>
