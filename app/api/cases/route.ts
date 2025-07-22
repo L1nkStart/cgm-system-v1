@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db" // Importa el pool de conexiones
-import { ciTitular } from "@/lib/utils" // Declare the variable before using it
 
 // Define las interfaces para los datos (pueden estar en un archivo de tipos separado)
 interface Service {
@@ -82,10 +81,15 @@ export async function GET(req: Request) {
     // Parse JSON fields and ensure correct types
     const cases = rows.map((row: any) => ({
       ...row,
-      services: row.services ? JSON.parse(row.services) : [],
+      // Modificación aquí: Solo parsear si row.services es una cadena no vacía
+      services: row.services && row.services.length > 0 ? JSON.parse(row.services) : [],
       // Convert Date objects to string if needed for consistency with mock
       date: row.date ? new Date(row.date).toISOString().split("T")[0] : null,
       patientBirthDate: row.patientBirthDate ? new Date(row.patientBirthDate).toISOString().split("T")[0] : null,
+      // Convert numeric fields to actual numbers
+      clinicCost: row.clinicCost !== null ? Number(row.clinicCost) : null,
+      cgmServiceCost: row.cgmServiceCost !== null ? Number(row.cgmServiceCost) : null,
+      totalInvoiceAmount: row.totalInvoiceAmount !== null ? Number(row.totalInvoiceAmount) : null,
     }))
 
     if (id) {
@@ -141,7 +145,7 @@ export async function POST(req: Request) {
       date,
       sinisterNo: Math.floor(Math.random() * 100000).toString(),
       idNumber: `V-${Math.floor(Math.random() * 10000000).toString()}`,
-      ciTitular: ciTitular || `V-${Math.floor(Math.random() * 10000000).toString()}`, // Usar el valor del formulario o generar
+      ciTitular: `V-${Math.floor(Math.random() * 10000000).toString()}`, // Usar el valor del formulario o generar
       ciPatient,
       patientName,
       patientPhone,
@@ -172,12 +176,12 @@ export async function POST(req: Request) {
 
     await pool.execute(
       `INSERT INTO cases (
-        id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
-        assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
-        cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
-        patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
-        diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
+       assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
+       cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
+       patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
+       diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
         newCase.client,
@@ -266,11 +270,19 @@ export async function PUT(req: Request) {
     const [updatedCaseRows]: any = await pool.execute("SELECT * FROM cases WHERE id = ?", [id])
     const updatedCase = {
       ...updatedCaseRows[0],
-      services: updatedCaseRows[0].services ? JSON.parse(updatedCaseRows[0].services) : [],
+      services:
+        updatedCaseRows[0].services && updatedCaseRows[0].services.length > 0
+          ? JSON.parse(updatedCaseRows[0].services)
+          : [],
       date: updatedCaseRows[0].date ? new Date(updatedCaseRows[0].date).toISOString().split("T")[0] : null,
       patientBirthDate: updatedCaseRows[0].patientBirthDate
         ? new Date(updatedCaseRows[0].patientBirthDate).toISOString().split("T")[0]
         : null,
+      // Convert numeric fields to actual numbers
+      clinicCost: updatedCaseRows[0].clinicCost !== null ? Number(updatedCaseRows[0].clinicCost) : null,
+      cgmServiceCost: updatedCaseRows[0].cgmServiceCost !== null ? Number(updatedCaseRows[0].cgmServiceCost) : null,
+      totalInvoiceAmount:
+        updatedCaseRows[0].totalInvoiceAmount !== null ? Number(updatedCaseRows[0].totalInvoiceAmount) : null,
     }
     return NextResponse.json(updatedCase)
   } catch (error) {

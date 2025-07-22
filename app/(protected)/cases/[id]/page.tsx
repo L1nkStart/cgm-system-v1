@@ -1,14 +1,17 @@
 "use client"
 
-import CaseDetailSection from "@/components/case-detail-section"
-import AttendedServicesTable from "@/components/attended-services-table"
-import EditCaseForm from "@/components/edit-case-form"
-import AuditCaseForm from "@/components/audit-case-form"
+import type React from "react"
+
+import { CaseDetailSection } from "@/components/case-detail-section"
+import { AttendedServicesTable } from "@/components/attended-services-table"
+import { EditCaseForm } from "@/components/edit-case-form"
+import { AuditCaseForm } from "@/components/audit-case-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
+import { User, Calendar, Hash, Phone, Mail, UserCog, Tag, Stethoscope, MapPin, Cake, ClipboardList } from "lucide-react"
 
 interface Service {
   name: string
@@ -56,6 +59,13 @@ interface Case {
   holderCI?: string
   services?: Service[]
   typeOfRequirement?: string
+}
+
+interface DetailItem {
+  icon: React.ReactNode
+  label: string
+  value: string | number | undefined | null
+  link?: string
 }
 
 export default function CaseDetailPage({ params }: { params: { id: string } }) {
@@ -112,6 +122,47 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const canEdit = userRole === "Superusuario" || userRole === "Coordinador Regional"
   const canAudit = userRole === "Superusuario" || userRole === "Médico Auditor"
 
+  // Function to prepare general case details
+  const getGeneralDetails = (data: Case): DetailItem[] => [
+    { icon: <User className="h-4 w-4" />, label: "Cliente", value: data.client },
+    { icon: <Calendar className="h-4 w-4" />, label: "Fecha", value: data.date },
+    { icon: <Hash className="h-4 w-4" />, label: "Nro. Siniestro", value: data.sinisterNo },
+    { icon: <Hash className="h-4 w-4" />, label: "ID #", value: data.idNumber },
+    { icon: <Hash className="h-4 w-4" />, label: "CI Titular", value: data.ciTitular },
+    { icon: <Hash className="h-4 w-4" />, label: "CI Paciente", value: data.ciPatient },
+    { icon: <User className="h-4 w-4" />, label: "Nombre Paciente", value: data.patientName },
+    { icon: <Phone className="h-4 w-4" />, label: "Teléfono Paciente", value: data.patientPhone },
+    { icon: <UserCog className="h-4 w-4" />, label: "Analista Asignado", value: data.assignedAnalystName },
+    { icon: <Tag className="h-4 w-4" />, label: "Estado", value: data.status },
+    { icon: <ClipboardList className="h-4 w-4" />, label: "Tipo de Requerimiento", value: data.typeOfRequirement },
+  ]
+
+  // Function to prepare additional patient/creator details
+  const getAdditionalDetails = (data: Case): DetailItem[] => [
+    { icon: <User className="h-4 w-4" />, label: "Creador del Caso", value: data.creatorName },
+    { icon: <Mail className="h-4 w-4" />, label: "Email Creador", value: data.creatorEmail },
+    { icon: <Phone className="h-4 w-4" />, label: "Teléfono Creador", value: data.creatorPhone },
+    { icon: <Phone className="h-4 w-4" />, label: "Otro Teléfono Paciente", value: data.patientOtherPhone },
+    { icon: <Phone className="h-4 w-4" />, label: "Teléfono Fijo Paciente", value: data.patientFixedPhone },
+    { icon: <Calendar className="h-4 w-4" />, label: "Fecha Nac. Paciente", value: data.patientBirthDate },
+    { icon: <Cake className="h-4 w-4" />, label: "Edad Paciente", value: data.patientAge },
+    { icon: <User className="h-4 w-4" />, label: "Género Paciente", value: data.patientGender },
+    { icon: <Tag className="h-4 w-4" />, label: "Colectivo", value: data.collective },
+    { icon: <Stethoscope className="h-4 w-4" />, label: "Diagnóstico", value: data.diagnosis },
+    { icon: <Tag className="h-4 w-4" />, label: "Proveedor", value: data.provider },
+    { icon: <MapPin className="h-4 w-4" />, label: "Estado", value: data.state },
+    { icon: <MapPin className="h-4 w-4" />, label: "Ciudad", value: data.city },
+    { icon: <MapPin className="h-4 w-4" />, label: "Dirección", value: data.address },
+    { icon: <Hash className="h-4 w-4" />, label: "CI Tomador", value: data.holderCI },
+  ]
+
+  // Function to prepare appointment details
+  const getAppointmentDetails = (data: Case): DetailItem[] => [
+    { icon: <Stethoscope className="h-4 w-4" />, label: "Médico", value: data.doctor },
+    { icon: <Calendar className="h-4 w-4" />, label: "Horario", value: data.schedule },
+    { icon: <MapPin className="h-4 w-4" />, label: "Consultorio", value: data.consultory },
+  ]
+
   return (
     <div className="flex flex-col gap-4 md:gap-8">
       <div className="flex items-center justify-between">
@@ -126,7 +177,18 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                 <DialogHeader>
                   <DialogTitle>Editar Detalles del Caso</DialogTitle>
                 </DialogHeader>
-                <EditCaseForm caseData={caseData} onSave={handleSave} />
+                {/* Pass initialData and onSave directly to EditCaseForm */}
+                <EditCaseForm
+                  isOpen={isEditFormOpen}
+                  onClose={() => setIsEditFormOpen(false)}
+                  onSave={(caseId, updates) => {
+                    // This logic should be handled by the form itself or a dedicated action
+                    // For now, we'll just refresh data and close
+                    fetchCaseData()
+                    setIsEditFormOpen(false)
+                  }}
+                  initialData={caseData}
+                />
               </DialogContent>
             </Dialog>
           )}
@@ -139,7 +201,18 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                 <DialogHeader>
                   <DialogTitle>Auditar Caso</DialogTitle>
                 </DialogHeader>
-                <AuditCaseForm caseData={caseData} onSave={handleSave} />
+                {/* Pass initialData and onAudit directly to AuditCaseForm */}
+                <AuditCaseForm
+                  isOpen={isAuditFormOpen}
+                  onClose={() => setIsAuditFormOpen(false)}
+                  onAudit={(caseId, newStatus, auditNotes) => {
+                    // This logic should be handled by the form itself or a dedicated action
+                    // For now, we'll just refresh data and close
+                    fetchCaseData()
+                    setIsAuditFormOpen(false)
+                  }}
+                  initialData={caseData}
+                />
               </DialogContent>
             </Dialog>
           )}
@@ -153,14 +226,11 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <TabsTrigger value="audit">Auditoría y Resultados</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>Datos del Caso</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CaseDetailSection caseData={caseData} />
-            </CardContent>
-          </Card>
+          <div className="grid gap-4">
+            <CaseDetailSection title="Datos Básicos del Caso" details={getGeneralDetails(caseData)} />
+            <CaseDetailSection title="Datos de la Cita" details={getAppointmentDetails(caseData)} />
+            <CaseDetailSection title="Información Adicional" details={getAdditionalDetails(caseData)} />
+          </div>
         </TabsContent>
         <TabsContent value="services">
           <Card>
@@ -168,7 +238,20 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <CardTitle>Servicios Atendidos</CardTitle>
             </CardHeader>
             <CardContent>
-              <AttendedServicesTable caseId={caseData.id} services={caseData.services || []} onSave={fetchCaseData} />
+              {/* AttendedServicesTable needs caseId, services, onUpdateServices, onAddRequirement */}
+              <AttendedServicesTable
+                services={caseData.services || []}
+                onUpdateServices={(updatedServices) => {
+                  // This would typically trigger a PUT request to update services
+                  console.log("Updated services:", updatedServices)
+                  // For now, just update local state if needed, or refetch
+                  // setCaseData(prev => prev ? { ...prev, services: updatedServices } : null);
+                }}
+                onAddRequirement={() => {
+                  console.log("Add requirement clicked")
+                  // Logic to add a new requirement
+                }}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -192,15 +275,15 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               </div>
               <div>
                 <h3 className="font-semibold">Costo Clínica:</h3>
-                <p>{caseData.clinicCost?.toFixed(2) || "0.00"}</p>
+                <p>${caseData.clinicCost?.toFixed(2) || "0.00"}</p>
               </div>
               <div>
                 <h3 className="font-semibold">Costo Servicio CGM:</h3>
-                <p>{caseData.cgmServiceCost?.toFixed(2) || "0.00"}</p>
+                <p>${caseData.cgmServiceCost?.toFixed(2) || "0.00"}</p>
               </div>
               <div>
                 <h3 className="font-semibold">Monto Total Factura:</h3>
-                <p>{caseData.totalInvoiceAmount?.toFixed(2) || "0.00"}</p>
+                <p>${caseData.totalInvoiceAmount?.toFixed(2) || "0.00"}</p>
               </div>
               <div>
                 <h3 className="font-semibold">Factura Generada:</h3>
