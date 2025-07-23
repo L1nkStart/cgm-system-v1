@@ -1,157 +1,202 @@
 "use client"
 
-import { UserForm } from "@/components/user-form"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { PlusCircle, Pencil, Trash2 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { UserForm } from "@/components/user-form"
+import { useToast } from "@/hooks/use-toast"
+import { PlusCircle, Edit, Trash2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch" // Importa Switch
 
 interface User {
   id: string
   email: string
   name: string
   role: string
+  assignedStates: string[]
+  isActive: boolean
 }
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [userRole, setUserRole] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchUsers()
-    fetchUserRole()
-  }, [isFormOpen])
+  const [editingUser, setEditingUser] = useState<User | undefined>(undefined)
+  const { toast } = useToast()
 
   const fetchUsers = async () => {
+    setLoading(true)
     try {
       const res = await fetch("/api/users")
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`)
       }
-      const data: User[] = await res.json()
+      const data = await res.json()
       setUsers(data)
     } catch (error) {
       console.error("Error fetching users:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los usuarios.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
-  const fetchUserRole = async () => {
-    try {
-      const res = await fetch("/api/current-user-role")
-      if (res.ok) {
-        const data = await res.json()
-        setUserRole(data.role)
-      } else {
-        setUserRole(null)
-      }
-    } catch (error) {
-      console.error("Error fetching user role:", error)
-      setUserRole(null)
-    }
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  const handleNewUser = () => {
+    setEditingUser(undefined)
+    setIsFormOpen(true)
   }
 
-  const handleSaveUser = async () => {
-    await fetchUsers() // Refresh the list
-    setIsFormOpen(false)
-    setEditingUser(null)
-  }
-
-  const handleDeleteUser = async (id: string) => {
-    if (window.confirm("¿Estás seguro de que quieres eliminar este usuario?")) {
-      try {
-        const res = await fetch(`/api/users?id=${id}`, {
-          method: "DELETE",
-        })
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`)
-        }
-        fetchUsers() // Refresh the list
-      } catch (error) {
-        console.error("Error deleting user:", error)
-      }
-    }
-  }
-
-  const handleEditClick = (user: User) => {
+  const handleEditUser = (user: User) => {
     setEditingUser(user)
     setIsFormOpen(true)
   }
 
-  const handleNewUserClick = () => {
-    setEditingUser(null)
-    setIsFormOpen(true)
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm("¿Estás seguro de que quieres eliminar este usuario?")) {
+      return
+    }
+    try {
+      const res = await fetch(`/api/users?id=${id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Failed to delete user")
+      }
+      toast({
+        title: "Éxito",
+        description: "Usuario eliminado correctamente.",
+      })
+      fetchUsers() // Refetch users after deletion
+    } catch (error: any) {
+      console.error("Error deleting user:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar el usuario.",
+        variant: "destructive",
+      })
+    }
   }
 
-  // Solo renderiza si el rol es Superusuario
-  if (userRole !== "Superusuario") {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-lg text-gray-500">Acceso denegado. No tienes permisos para ver esta página.</p>
-      </div>
-    )
+  const handleToggleActive = async (user: User) => {
+    try {
+      const res = await fetch(`/api/users?id=${user.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isActive: !user.isActive }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Failed to update user status")
+      }
+
+      toast({
+        title: "Éxito",
+        description: `Usuario ${user.isActive ? "deshabilitado" : "habilitado"} correctamente.`,
+      })
+      fetchUsers() // Refetch users to update the table
+    } catch (error: any) {
+      console.error("Error toggling user active status:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el estado del usuario.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Gestión de Usuarios</h1>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleNewUserClick}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Nuevo Usuario
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
-            </DialogHeader>
-            <UserForm isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} initialData={editingUser ? editingUser : undefined} onSave={handleSaveUser} />
-          </DialogContent>
-        </Dialog>
+    <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
+        <Button onClick={handleNewUser}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Nuevo Usuario
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Usuarios</CardTitle>
-          <CardDescription>Gestiona los usuarios del sistema.</CardDescription>
-        </CardHeader>
-        <CardContent>
+      {loading ? (
+        <div className="text-center">Cargando usuarios...</div>
+      ) : (
+        <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Correo</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Rol</TableHead>
+                <TableHead>Estados Asignados</TableHead>
+                <TableHead>Activo</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.role}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(user)}>
-                      <Pencil className="h-4 w-4" />
-                      <span className="sr-only">Editar</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user.id)}>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Eliminar</span>
-                    </Button>
+              {users.length > 0 ? (
+                users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.role}</TableCell>
+                    <TableCell>{user.assignedStates?.join(", ") || "N/A"}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={user.isActive}
+                        onCheckedChange={() => handleToggleActive(user)}
+                        aria-label={`Toggle user ${user.name} active status`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="icon" onClick={() => handleEditUser(user)}>
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Editar</span>
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteUser(user.id)}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Eliminar</span>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    No se encontraron usuarios.
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
+          </DialogHeader>
+          <UserForm
+            user={editingUser}
+            onSuccess={() => {
+              setIsFormOpen(false)
+              fetchUsers()
+            }}
+            onCancel={() => setIsFormOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

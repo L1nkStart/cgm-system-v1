@@ -26,6 +26,10 @@ export async function POST(request: Request) {
         if (!isPasswordValid) {
             return NextResponse.json({ message: "Invalid credentials" }, { status: 401 })
         }
+        // Verificar si el usuario está activo
+        if (!user.isActive) {
+            return NextResponse.json({ error: "User account is disabled" }, { status: 403 })
+        }
 
         // Establece la cookie de sesión con solo el ID y email
         await setSessionCookie(user.id, user.email)

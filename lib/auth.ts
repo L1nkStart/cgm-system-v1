@@ -8,6 +8,7 @@ export interface UserSession {
   name: string
   role: string
   assignedStates: string[]
+  isActive: boolean
 }
 
 export async function getFullUserSession(): Promise<UserSession | null> {
@@ -18,7 +19,7 @@ export async function getFullUserSession(): Promise<UserSession | null> {
   }
 
   try {
-    const [rows]: any = await pool.execute("SELECT id, email, name, role, assignedStates FROM users WHERE id = ?", [
+    const [rows]: any = await pool.execute("SELECT id, email, name, role, isActive, assignedStates FROM users WHERE id = ?", [
       sessionPayload.id,
     ])
     const user = rows[0]
@@ -37,6 +38,7 @@ export async function getFullUserSession(): Promise<UserSession | null> {
       name: user.name,
       role: user.role,
       assignedStates: assignedStates,
+      isActive: user.isActive,
     }
   } catch (error) {
     console.error("Error fetching full user session from DB:", error)

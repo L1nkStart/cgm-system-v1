@@ -4,249 +4,208 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { MultiSelect } from "./ui/multi-select"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { Switch } from "@/components/ui/switch" // Importa el componente Switch
 
-// Definimos la interfaz para los datos del usuario, incluyendo el ID para edición
 interface UserData {
-  id?: string // Opcional para nuevos usuarios
+  id?: string
   email: string
-  name: string // Añadido el campo name
+  name: string
   role: string
   password?: string
-  assignedStates?: string[] // New field for assigned states
+  assignedStates?: string[]
+  isActive?: boolean // Añadido el campo isActive
 }
 
 interface UserFormProps {
-  isOpen: boolean
-  onClose: () => void
-  initialData?: UserData | null // Ahora incluye 'name' y 'id'
+  user?: UserData
+  onSuccess: () => void
+  onCancel: () => void
 }
 
-export function UserForm({ isOpen, onClose, initialData }: UserFormProps) {
-  const [email, setEmail] = useState(initialData?.email || "")
-  const [name, setName] = useState(initialData?.name || "") // Estado para el nombre
+const ROLES = [
+  "Superusuario",
+  "Coordinador Regional",
+  "Analista Concertado",
+  "Médico Auditor",
+  "Jefe Financiero",
+  "Administrador",
+]
+
+const VENEZUELAN_STATES = [
+  "Amazonas",
+  "Anzoátegui",
+  "Apure",
+  "Aragua",
+  "Barinas",
+  "Bolívar",
+  "Carabobo",
+  "Cojedes",
+  "Delta Amacuro",
+  "Dependencias Federales",
+  "Distrito Capital",
+  "Falcón",
+  "Guárico",
+  "La Guaira",
+  "Lara",
+  "Mérida",
+  "Miranda",
+  "Monagas",
+  "Nueva Esparta",
+  "Portuguesa",
+  "Sucre",
+  "Táchira",
+  "Trujillo",
+  "Yaracuy",
+  "Zulia",
+]
+
+export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
+  const [email, setEmail] = useState(user?.email || "")
+  const [name, setName] = useState(user?.name || "")
+  const [role, setRole] = useState(user?.role || "")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState(initialData?.role || "")
-  const [assignedStates, setAssignedStates] = useState<string[]>(initialData?.assignedStates || []) // State for assigned states
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [assignedStates, setAssignedStates] = useState<string[]>(user?.assignedStates || [])
+  const [isActive, setIsActive] = useState(user?.isActive ?? true) // Estado para isActive, por defecto true
   const { toast } = useToast()
 
-  // Sincronizar el estado local con initialData cuando cambie
   useEffect(() => {
-    if (initialData) {
-      setEmail(initialData.email)
-      setName(initialData.name)
-      setRole(initialData.role)
-      setAssignedStates(initialData.assignedStates || [])
-      setPassword("admin") // No precargar la contraseña por seguridad
+    if (user) {
+      setEmail(user.email)
+      setName(user.name)
+      setRole(user.role)
+      setAssignedStates(user.assignedStates || [])
+      setIsActive(user.isActive ?? true) // Sincroniza isActive
     } else {
+      // Resetear para nuevo usuario
       setEmail("")
       setName("")
-      setPassword("admin") // Reset password for new user
       setRole("")
-      setAssignedStates([]) // Reset assigned states to default
+      setPassword("")
+      setAssignedStates([])
+      setIsActive(true)
     }
-  }, [initialData])
-
-  const roles = ["Superusuario", "Coordinador Regional", "Analista Concertado", "Médico Auditor", "Jefe Financiero"]
-
-  const venezuelanStates = [
-    "Amazonas",
-    "Anzoátegui",
-    "Apure",
-    "Aragua",
-    "Barinas",
-    "Bolívar",
-    "Carabobo",
-    "Cojedes",
-    "Delta Amacuro",
-    "Distrito Capital",
-    "Falcón",
-    "Guárico",
-    "La Guaira",
-    "Lara",
-    "Mérida",
-    "Miranda",
-    "Monagas",
-    "Nueva Esparta",
-    "Portuguesa",
-    "Sucre",
-    "Táchira",
-    "Trujillo",
-    "Yaracuy",
-    "Zulia",
-  ].sort()
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
 
-    if (!email || !name || !role || (!initialData && !password)) {
-      toast({
-        title: "Error",
-        description: "Por favor, complete todos los campos requeridos.",
-        variant: "destructive",
-      })
-      setIsSubmitting(false)
-      return
+    const userData: Partial<UserData> = {
+      email,
+      name,
+      role,
+      isActive, // Incluye isActive
     }
 
-    // Validate assignedStates for specific roles
-    if ((role === "Analista Concertado" || role === "Médico Auditor") && assignedStates.length === 0) {
-      toast({
-        title: "Error",
-        description: "Para el rol seleccionado, debe asignar al menos un estado.",
-        variant: "destructive",
-      })
-      setIsSubmitting(false)
-      return
+    if (password) {
+      userData.password = password
+    }
+
+    if (role === "Analista Concertado" || role === "Médico Auditor") {
+      userData.assignedStates = assignedStates.length > 0 ? assignedStates : []
+    } else {
+      userData.assignedStates = [] // Asegura que sea un array vacío para otros roles
     }
 
     try {
-      let response
-      const userDataToSave: Partial<UserData> = { email, name, role }
+      const method = user ? "PUT" : "POST"
+      const url = user ? `/api/users?id=${user.id}` : "/api/users"
 
-      // Only include assignedStates if the role requires it
-      if (role === "Analista Concertado" || role === "Médico Auditor") {
-        userDataToSave.assignedStates = assignedStates
-      } else {
-        userDataToSave.assignedStates = [] // Ensure it's an empty array for other roles
-      }
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
+      })
 
-      if (initialData) {
-        // Es una edición
-        if (password) {
-          userDataToSave.password = password
-        }
-        response = await fetch(`/api/users?id=${initialData.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(userDataToSave),
-        })
-      } else {
-        // Es un nuevo usuario
-        userDataToSave.password = password
-        response = await fetch("/api/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(userDataToSave),
-        })
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to save user")
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || "Something went wrong")
       }
 
       toast({
         title: "Éxito",
-        description: `Usuario ${initialData ? "actualizado" : "creado"} correctamente.`,
+        description: `Usuario ${user ? "actualizado" : "creado"} correctamente.`,
       })
-      onClose() // Cierra el diálogo y dispara el re-fetch en el padre
+      onSuccess()
     } catch (error: any) {
-      console.error("Error saving user:", error)
       toast({
         title: "Error",
-        description: error.message || "No se pudo guardar el usuario.",
+        description: error.message || "No se pudo procesar la solicitud.",
         variant: "destructive",
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
+  const handleAssignedStatesChange = (selectedItems: string[]) => {
+    setAssignedStates(selectedItems)
+  }
+
+  const showAssignedStates = role === "Analista Concertado" || role === "Médico Auditor"
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>{initialData ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Nombre
-            </Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" required />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="email" className="text-right">
-              Correo electrónico
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="col-span-3"
-              required
-              disabled={!!initialData} // Deshabilitar edición de email para usuarios existentes
-            />
-          </div>
-          {/* Mostrar campo de contraseña solo para nuevos usuarios o si se desea cambiar en edición */}
-          {!initialData || (initialData && password) ? (
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="password" className="text-right">
-                Contraseña
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="col-span-3"
-                required={!initialData} // Requerida solo para nuevos usuarios
-                placeholder={initialData ? "Dejar en blanco para no cambiar" : ""}
-              />
-            </div>
-          ) : null}
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="role" className="text-right">
-              Rol
-            </Label>
-            <Select value={role} onValueChange={setRole} required>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Seleccione un rol" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {(role !== "Jefe Financiero") && (
-            <div className="grid grid-cols-4 items-start gap-4">
-              <Label htmlFor="assignedStates" className="text-right pt-2">
-                Estados Asignados
-              </Label>
-              <div className="col-span-3">
-                <MultiSelect
-                  options={venezuelanStates.map((state) => ({ label: state, value: state }))}
-                  selected={assignedStates}
-                  onSelectedChange={setAssignedStates}
-                  placeholder="Seleccione estados..."
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white" disabled={isSubmitting}>
-              {isSubmitting ? "Guardando..." : initialData ? "Guardar Cambios" : "Crear Usuario"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      <div className="grid gap-2">
+        <Label htmlFor="name">Nombre</Label>
+        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="role">Rol</Label>
+        <Select value={role} onValueChange={setRole} required>
+          <SelectTrigger id="role">
+            <SelectValue placeholder="Selecciona un rol" />
+          </SelectTrigger>
+          <SelectContent>
+            {ROLES.map((r) => (
+              <SelectItem key={r} value={r}>
+                {r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {showAssignedStates && (
+        <div className="grid gap-2">
+          <Label htmlFor="assignedStates">Estados Asignados</Label>
+          <MultiSelect
+            options={VENEZUELAN_STATES.map((state) => ({ label: state, value: state }))}
+            selected={assignedStates}
+            onSelect={handleAssignedStatesChange}
+            placeholder="Selecciona estados"
+          />
+        </div>
+      )}
+      <div className="grid gap-2">
+        <Label htmlFor="password">{user ? "Nueva Contraseña (opcional)" : "Contraseña"}</Label>
+        <Input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required={!user} // Requerida solo para nuevos usuarios
+        />
+      </div>
+      {user && ( // Solo mostrar el switch de activo/inactivo para usuarios existentes
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="isActive">Activo</Label>
+          <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
+        </div>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit">{user ? "Guardar Cambios" : "Crear Usuario"}</Button>
+      </div>
+    </form>
   )
 }

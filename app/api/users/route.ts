@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db"
-import bcrypt from "bcryptjs" // Importa bcryptjs
+import bcrypt from "bcryptjs"
 
 export async function GET() {
   try {
-    const [rows]: any = await pool.query("SELECT id, email, name, role, assignedStates FROM users")
+    const [rows]: any = await pool.query("SELECT id, email, name, role, assignedStates, isActive FROM users")
     // Parse assignedStates from JSON string to array, handling empty strings
     const users = rows.map((user: any) => ({
       ...user,
@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { email, name, role, password, assignedStates } = await req.json()
+    const { email, name, role, password, assignedStates, isActive } = await req.json()
 
     if (!email || !name || !role || !password) {
       return NextResponse.json({ error: "Email, name, role, and password are required" }, { status: 400 })
@@ -45,10 +45,19 @@ export async function POST(req: Request) {
       role,
       password: hashedPassword, // Guarda la contraseña hasheada
       assignedStates: assignedStates ? JSON.stringify(assignedStates) : null, // Stringify assignedStates
+      isActive: isActive !== undefined ? isActive : true, // Default to true if not provided
     }
     await pool.execute(
-      "INSERT INTO users (id, email, name, role, password, assignedStates) VALUES (?, ?, ?, ?, ?, ?)",
-      [newUser.id, newUser.email, newUser.name, newUser.role, newUser.password, newUser.assignedStates],
+      "INSERT INTO users (id, email, name, role, password, assignedStates, isActive) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        newUser.id,
+        newUser.email,
+        newUser.name,
+        newUser.role,
+        newUser.password,
+        newUser.assignedStates,
+        newUser.isActive,
+      ],
     )
 
     const { password: _, ...userWithoutPassword } = newUser // Excluir password de la respuesta
@@ -63,7 +72,7 @@ export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
-    const { email, name, role, password, assignedStates } = await req.json()
+    const { email, name, role, password, assignedStates, isActive } = await req.json()
 
     if (!id) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
@@ -95,6 +104,10 @@ export async function PUT(req: Request) {
       updates.push("assignedStates = ?")
       values.push(assignedStates ? JSON.stringify(assignedStates) : null) // Stringify assignedStates
     }
+    if (isActive !== undefined) {
+      updates.push("isActive = ?")
+      values.push(isActive)
+    }
 
     if (updates.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 })
@@ -109,7 +122,7 @@ export async function PUT(req: Request) {
 
     // Fetch the updated user to return
     const [updatedUserRows]: any = await pool.execute(
-      "SELECT id, email, name, role, assignedStates FROM users WHERE id = ?",
+      "SELECT id, email, name, role, assignedStates, isActive FROM users WHERE id = ?",
       [id],
     )
     const updatedUser = {
@@ -134,6 +147,19 @@ export async function DELETE(req: Request) {
 
     if (!id) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
+    }
+
+    // Verificar si el usuario tiene casos asignados
+    const [assignedCases]: any = await pool.execute("SELECT id FROM cases WHERE analystId = ? OR auditorId = ?", [
+      id,
+      id,
+    ])
+
+    if (assignedCases.length > 0) {
+      return NextResponse.json(
+        { error: "Cannot delete user: User has assigned cases. Please disable the user instead." },
+        { status: 400 },
+      )
     }
 
     const [result]: any = await pool.execute("DELETE FROM users WHERE id = ?", [id])
