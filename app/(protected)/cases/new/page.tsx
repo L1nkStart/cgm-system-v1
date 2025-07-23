@@ -1,8 +1,8 @@
 import { NewCaseForm } from "@/components/new-case-form"
-import { getSession } from "@/lib/auth" // Importa getSession
+import { getFullUserSession } from "@/lib/auth" // Importa getSession
 
 export default async function NewCasePage() {
-  const session = await getSession()
+  const session = await getFullUserSession()
   const userRole = session?.role || "Invitado"
 
   if (userRole !== "Superusuario" && userRole !== "Coordinador Regional") {

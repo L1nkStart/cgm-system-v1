@@ -1,30 +1,25 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-// Eliminamos la importación de `login` de "@/lib/auth" aquí, ya no la necesitamos directamente.
-// import { login } from "@/lib/auth"; // ¡QUITAR ESTA LÍNEA!
+import { toast } from "@/components/ui/use-toast"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
-    setIsSubmitting(true)
-
+    setLoading(true)
     try {
-      // **CAMBIO CLAVE AQUÍ: Llamar a la API Route de login**
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -34,19 +29,44 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
-        // La API Route ya estableció la cookie HTTP-only.
-        // Ahora solo necesitamos redirigir al usuario.
+        toast({
+          title: "Inicio de sesión exitoso",
+          description: "Redirigiendo al dashboard...",
+        })
         router.push("/dashboard")
       } else {
-        // Manejar errores de la API Route
         const data = await response.json()
-        setError(data.message || "Credenciales inválidas. Por favor, inténtalo de nuevo.")
+        toast({
+          title: "Error de inicio de sesión",
+          description: data.message || "Credenciales inválidas.",
+          variant: "destructive",
+        })
       }
-    } catch (err) {
-      console.error("Login error:", err)
-      setError("Ocurrió un error de conexión al intentar iniciar sesión. Por favor, inténtalo más tarde.")
+    } catch (error) {
+      console.error("Error during login:", error)
+      toast({
+        title: "Error",
+        description: "Ocurrió un error inesperado. Inténtalo de nuevo.",
+        variant: "destructive",
+      })
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    setLoading(true)
+    try {
+      await logoutAction() // Llama a la Server Action
+    } catch (error) {
+      console.error("Error during logout:", error)
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al cerrar sesión.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -54,19 +74,11 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <Image
-            src="/citamed-logo.png"
-            alt="Citamed Logo"
-            width={150}
-            height={150}
-            className="mx-auto mb-4"
-            priority
-          />
           <CardTitle className="text-2xl font-bold">Iniciar Sesión</CardTitle>
-          <CardDescription>Ingresa tu correo electrónico y contraseña para acceder a tu cuenta.</CardDescription>
+          <CardDescription>Ingresa tu correo y contraseña para acceder a tu cuenta.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Correo Electrónico</Label>
               <Input
@@ -88,11 +100,14 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Iniciando sesión..." : "Iniciar Sesión"}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
           </form>
+          {/* Example of a logout button, if needed on this page */}
+          {/* <Button onClick={handleLogout} className="w-full mt-4 bg-transparent" variant="outline" disabled={loading}>
+            Cerrar Sesión
+          </Button> */}
         </CardContent>
       </Card>
     </div>

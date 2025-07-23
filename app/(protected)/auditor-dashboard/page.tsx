@@ -1,8 +1,8 @@
 import { CasesTable } from "@/components/cases-table"
-import { getSession } from "@/lib/auth" // Importa getSession
+import { getFullUserSession } from "@/lib/auth" // Importa getSession
 
 export default async function AuditorDashboardPage() {
-  const session = await getSession()
+  const session = await getFullUserSession()
   const userRole = session?.role || "Invitado"
   const userAssignedStates = session?.assignedStates || [] // Get assigned states
 

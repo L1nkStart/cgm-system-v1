@@ -105,6 +105,7 @@ export function CasesTable({
 
       // Add this line inside the fetchCases function, before the fetch call
       console.log("CasesTable: Fetching cases from URL:", url.toString())
+      console.log("CasesTable: userRole:", userRole, "analystId:", analystId, "userAssignedStates:", userAssignedStates)
 
       const response = await fetch(url.toString())
       if (!response.ok) {

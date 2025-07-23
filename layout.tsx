@@ -3,10 +3,7 @@ import type { Metadata } from "next/types"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AppSidebar } from "@/components/sidebar"
-import DashboardHeader from "@/components/dashboard-header"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { getSession } from "@/lib/auth" // Importa getSession
+import { getFullUserSession } from "@/lib/auth" // Importa getSession
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -20,7 +17,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const session = await getSession() // Obtiene la sesión del usuario
+  const session = await getFullUserSession()
 
   return (
     <html lang="es" suppressHydrationWarning>

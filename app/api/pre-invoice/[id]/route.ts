@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 import pool from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { getFullUserSession } from "@/lib/auth"
 
 interface Service {
     name: string
@@ -62,7 +62,7 @@ interface BaremoProcedure {
 export async function GET(req: Request, { params }: { params: { id: string } }) {
     try {
         const { id } = params
-        const session = await getSession()
+        const session = await getFullUserSession() // Get current user session
 
         // 1. Authorize user
         if (!session || (session.role !== "Superusuario" && session.role !== "Jefe Financiero")) {

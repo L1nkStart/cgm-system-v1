@@ -34,7 +34,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-// import { logout } from "@/lib/auth"
+import { logoutAction } from "@/app/actions"
+
 import { useSidebar } from "@/components/ui/use-sidebar"
 
 interface NavItem {
@@ -204,10 +205,10 @@ export function AppSidebar({
                 <DropdownMenuItem>
                   <span>Mi Perfil</span>
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem onClick={() => logout()}>
+                <DropdownMenuItem onClick={() => logoutAction()}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Cerrar Sesión</span>
-                </DropdownMenuItem> */}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>

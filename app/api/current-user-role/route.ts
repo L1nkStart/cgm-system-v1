@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
-import { getSession } from "@/lib/auth"
+import { getFullUserSession } from "@/lib/auth"
 
 export async function GET() {
-  const session = await getSession()
+  const session = await getFullUserSession()
   if (session) {
     return NextResponse.json({ role: session.role })
   }

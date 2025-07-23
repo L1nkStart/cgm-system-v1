@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db" // Importa el pool de conexiones
-import { getSession } from "@/lib/auth" // Import getSession
+import { getFullUserSession } from "@/lib/auth" // Import getSession
 
 // Define las interfaces para los datos (pueden estar en un archivo de tipos separado)
 interface Service {
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     const statusFilter = searchParams.get("status")
     const statesFilter = searchParams.get("states") // New: filter by states
 
-    const session = await getSession() // Get current user session
+    const session = await getFullUserSession() // Get current user session
 
     console.log("API /api/cases GET: statesFilter from URL =", statesFilter)
     console.log(

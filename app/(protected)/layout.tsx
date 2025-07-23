@@ -1,12 +1,12 @@
 import type React from "react"
 import type { Metadata } from "next/types"
 import { Inter } from "next/font/google"
-import "../globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import "./globals.css"
 import { AppSidebar } from "@/components/sidebar"
-import DashboardHeader from "@/components/dashboard-header"
+import { DashboardHeader } from "@/components/dashboard-header"
 import { SidebarProvider } from "@/components/ui/use-sidebar" // Importa SidebarProvider
-// Eliminamos la importación de SidebarInset
+import { getFullUserSession } from "@/lib/auth" // Importa getFullUserSession
+import { logoutAction } from "../actions"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -20,7 +20,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const session = await getSession() // Obtiene la sesión del usuario
+  const session = await getFullUserSession() // Obtiene la sesión completa del usuario
 
   return (
     <html lang="es" suppressHydrationWarning>
@@ -45,4 +45,3 @@ export default async function RootLayout({
   )
 }
 
-import { getSession } from "@/lib/auth" // Importa getSession
