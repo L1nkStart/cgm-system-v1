@@ -24,7 +24,7 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers()
     fetchUserRole()
-  }, [])
+  }, [isFormOpen])
 
   const fetchUsers = async () => {
     try {

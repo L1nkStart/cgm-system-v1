@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
-import pool from "@/lib/db" // Importa el pool de conexiones
+import pool from "@/lib/db"
+import bcrypt from "bcryptjs" // Importa bcryptjs
 
 export async function GET() {
   try {
@@ -34,12 +35,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User with this email already exists" }, { status: 409 })
     }
 
+    // Hashear la contraseña antes de guardarla
+    const hashedPassword = await bcrypt.hash(password, 10) // 10 es el número de rondas de sal
+
     const newUser = {
       id: uuidv4(),
       email,
       name,
       role,
-      password,
+      password: hashedPassword, // Guarda la contraseña hasheada
       assignedStates: assignedStates ? JSON.stringify(assignedStates) : null, // Stringify assignedStates
     }
     await pool.execute(
@@ -81,8 +85,10 @@ export async function PUT(req: Request) {
       values.push(role)
     }
     if (password) {
+      // Hashear la nueva contraseña si se proporciona
+      const hashedPassword = await bcrypt.hash(password, 10)
       updates.push("password = ?")
-      values.push(password)
+      values.push(hashedPassword)
     }
     if (assignedStates !== undefined) {
       // Check for undefined to allow setting to empty array
