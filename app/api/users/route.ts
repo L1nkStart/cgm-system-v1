@@ -5,13 +5,13 @@ import bcrypt from "bcryptjs"
 
 export async function GET() {
   try {
-    const [rows]: any = await pool.query("SELECT id, email, name, role, assignedStates, isActive FROM users")
+    const [rows]: any = await pool.query("SELECT * FROM users")
     // Parse assignedStates from JSON string to array, handling empty strings
     const users = rows.map((user: any) => ({
       ...user,
       assignedStates:
         user.assignedStates.length > 0
-          ? user.assignedStates
+          ? JSON.stringify(user.assignedStates)
           : [],
     }))
     console.log(users)

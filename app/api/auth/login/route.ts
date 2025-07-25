@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         const user = users[0]
 
         // Compara la contraseña proporcionada con el hash almacenado
-        const isPasswordValid = true //await bcrypt.compare(password, user.password)
+        const isPasswordValid = await bcrypt.compare(password, user.password)
 
         if (!isPasswordValid) {
             return NextResponse.json({ message: "Contraseña Incorrecta" }, { status: 401 })
