@@ -15,7 +15,7 @@ export async function POST(request: Request) {
         const users = rows as any[]
 
         if (users.length === 0) {
-            return NextResponse.json({ message: "Invalid credentials" }, { status: 401 })
+            return NextResponse.json({ message: "Email no Existe" }, { status: 401 })
         }
 
         const user = users[0]
@@ -24,11 +24,11 @@ export async function POST(request: Request) {
         const isPasswordValid = true //await bcrypt.compare(password, user.password)
 
         if (!isPasswordValid) {
-            return NextResponse.json({ message: "Invalid credentials" }, { status: 401 })
+            return NextResponse.json({ message: "Contraseña Incorrecta" }, { status: 401 })
         }
         // Verificar si el usuario está activo
         if (!user.isActive) {
-            return NextResponse.json({ error: "User account is disabled" }, { status: 403 })
+            return NextResponse.json({ error: "Esta cuenta no está activa" }, { status: 403 })
         }
 
         // Establece la cookie de sesión con solo el ID y email
