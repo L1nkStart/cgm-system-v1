@@ -10,10 +10,10 @@ export async function GET() {
     const users = rows.map((user: any) => ({
       ...user,
       assignedStates:
-        user.assignedStates.length > 0
-          ? user.assignedStates
+        user.assignedStates && typeof user.assignedStates === 'string' && user.assignedStates.length > 0
+          ? JSON.parse(user.assignedStates) // Debes parsearlo aquí
           : [],
-    }))
+    }));
     return NextResponse.json(users)
   } catch (error) {
     console.error("Error fetching users:", error)
