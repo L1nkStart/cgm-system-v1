@@ -18,20 +18,13 @@ jobs:
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Add SSH known hosts (Opcional, pero recomendado)
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
-        chmod 600 ~/.ssh/known_hosts
-      if: ${{ secrets.SSH_KNOWN_HOSTS }} # <--- ¡CAMBIADO AQUÍ! Esto evalúa si el secreto existe y no es nulo/vacío
-
     - name: Deploy to VPS
       run: |
         # Conéctate a tu VPS y ejecuta los comandos de despliegue
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd /ruta/a/tu/proyecto/en/el/vps # <--- ¡CAMBIA ESTA RUTA POR LA RUTA ABSOLUTA DE TU APP EN EL VPS!
-          git pull origin main             # <--- ¡IMPORTANTE! Asegúrate que 'main' sea la rama correcta (o la que uses para despliegue)
-          npm install                      # O usa 'yarn install' si utilizas Yarn
-          # npm run build                  # Descomenta y ajusta si tu proyecto necesita ser compilado (ej. para frontend o TypeScript)
-          pm2 reload nombre-de-tu-app      # <--- ¡CAMBIA 'nombre-de-tu-app' por el nombre REAL de tu app en PM2! (verifica con 'pm2 list')
+          cd /htdocs/cgm.salu.pro # <--- ¡CAMBIA ESTA RUTA POR LA RUTA ABSOLUTA DE TU APP EN EL VPS!
+          git pull origin main
+          npm install
+          npm run build
+          pm2 cgm-project
         EOF
