@@ -22,7 +22,7 @@ jobs:
       run: |
         # Conéctate a tu VPS y ejecuta los comandos de despliegue
         ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd /home/eduardo-ssh/htdocs/cgm.salu.pro # <--- ¡CAMBIA ESTA RUTA POR LA RUTA ABSOLUTA DE TU APP EN EL VPS!
+          cd /home/salu-cgm/htdocs/cgm.salu.pro
           git pull origin main
           npm install
           npm run build
