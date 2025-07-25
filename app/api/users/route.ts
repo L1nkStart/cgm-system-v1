@@ -11,10 +11,9 @@ export async function GET() {
       ...user,
       assignedStates:
         user.assignedStates.length > 0
-          ? JSON.stringify(user.assignedStates)
+          ? user.assignedStates
           : [],
     }))
-    console.log(users)
     return NextResponse.json(users)
   } catch (error) {
     console.error("Error fetching users:", error)
