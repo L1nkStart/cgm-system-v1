@@ -33,6 +33,7 @@ export default function UsersPage() {
         throw new Error(`HTTP error! status: ${res.status}`)
       }
       const data = await res.json()
+      console.log(data, "ADS")
       setUsers(data)
     } catch (error) {
       console.error("Error fetching users:", error)

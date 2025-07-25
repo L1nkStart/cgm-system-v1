@@ -1,39 +1,31 @@
 "use client"
 
-import type React from "react"
-
-import { CaseDetailSection } from "@/components/case-detail-section"
-import { AttendedServicesTable } from "@/components/attended-services-table"
-import { EditCaseForm } from "@/components/edit-case-form"
-import { AuditCaseForm } from "@/components/audit-case-form"
-import { ScheduleAppointmentForm } from "@/components/schedule-appointment-form"
-import { PreInvoiceDialog } from "@/components/pre-invoice-dialog"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState, useEffect } from "react"
-import {
-  User,
-  Calendar,
-  Hash,
-  Phone,
-  Mail,
-  UserCog,
-  Tag,
-  Stethoscope,
-  MapPin,
-  Cake,
-  ClipboardList,
-  Scale,
-} from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/ui/use-toast"
+import { CaseDetailSection } from "@/components/case-detail-section"
+import { EditCaseForm } from "@/components/edit-case-form"
+import { AuditCaseForm } from "@/components/audit-case-form"
+import { AddProcedureToCaseForm } from "@/components/add-procedure-to-case-form"
+import { AttendedServicesTable } from "@/components/attended-services-table"
+import { ScheduleAppointmentForm } from "@/components/schedule-appointment-form"
+import { PreInvoiceDialog } from "@/components/pre-invoice-dialog"
+import { DocumentUploadForm } from "@/components/document-upload-form" // Import the new component
+import { FileText } from "lucide-react"
 
 interface Service {
   name: string
   type: string
   amount: number
   attended: boolean
+}
+
+interface Document {
+  name: string
+  url: string
 }
 
 interface Case {
@@ -77,286 +69,203 @@ interface Case {
   typeOfRequirement?: string
   baremoId?: string
   baremoName?: string
-}
-
-interface DetailItem {
-  icon: React.ReactNode
-  label: string
-  value: string | number | undefined | null
-  link?: string
+  documents?: Document[] // Add documents to Case interface
 }
 
 export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const { id } = params
+  const router = useRouter()
+  const { toast } = useToast()
   const [caseData, setCaseData] = useState<Case | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isEditFormOpen, setIsEditFormOpen] = useState(false)
   const [isAuditFormOpen, setIsAuditFormOpen] = useState(false)
-  const [isScheduleFormOpen, setIsScheduleFormOpen] = useState(false)
-  const [isPreInvoiceFormOpen, setIsPreInvoiceFormOpen] = useState(false) // New state for pre-invoice form
+  const [isAddProcedureFormOpen, setIsAddProcedureFormOpen] = useState(false)
+  const [isScheduleAppointmentFormOpen, setIsScheduleAppointmentFormOpen] = useState(false)
+  const [isPreInvoiceDialogOpen, setIsPreInvoiceDialogOpen] = useState(false)
+  const [isDocumentUploadFormOpen, setIsDocumentUploadFormOpen] = useState(false) // State for document upload form
   const [userRole, setUserRole] = useState<string | null>(null)
-  const { toast } = useToast()
+  const [userId, setUserId] = useState<string | null>(null)
+
+  const fetchCaseData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/cases?id=${id}`)
+      if (!response.ok) {
+        if (response.status === 403) {
+          setError("No tienes permiso para ver este caso.")
+        } else {
+          throw new Error(`Failed to fetch case: ${response.statusText}`)
+        }
+      }
+      const data = await response.json()
+      setCaseData(data)
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred.")
+      toast({
+        title: "Error",
+        description: err.message || "Failed to load case details.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchUserRole = async () => {
+    try {
+      const response = await fetch("/api/current-user-role")
+      if (response.ok) {
+        const data = await response.json()
+        setUserRole(data.role || null)
+        setUserId(data.userId || null) // Set userId here
+      } else {
+        console.error("Failed to fetch user role:", response.statusText)
+        setUserRole(null)
+        setUserId(null)
+      }
+    } catch (error) {
+      console.error("Error fetching user role:", error)
+      setUserRole(null)
+      setUserId(null)
+    }
+  }
 
   useEffect(() => {
     fetchCaseData()
     fetchUserRole()
   }, [id])
 
-  const fetchCaseData = async () => {
+  const handleUpdateCase = async (updatedFields: Partial<Case>) => {
     try {
-      const res = await fetch(`/api/cases?id=${id}`)
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`)
-      }
-      const data: Case = await res.json()
-      setCaseData(data)
-    } catch (error) {
-      console.error("Error fetching case data:", error)
-      setCaseData(null)
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los detalles del caso.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const fetchUserRole = async () => {
-    try {
-      const res = await fetch("/api/current-user-role")
-      if (res.ok) {
-        const data = await res.json()
-        setUserRole(data.role)
-      } else {
-        setUserRole(null)
-      }
-    } catch (error) {
-      console.error("Error fetching user role:", error)
-      setUserRole(null)
-    }
-  }
-
-  const handleSaveEditedCase = async (caseId: string, updates: Partial<Case>) => {
-    try {
-      const response = await fetch(`/api/cases?id=${caseId}`, {
+      const response = await fetch(`/api/cases?id=${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(updatedFields),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to update case")
+        throw new Error(errorData.error || "Failed to update case.")
       }
 
+      const updatedCase = await response.json()
+      setCaseData(updatedCase)
       toast({
         title: "Éxito",
         description: "Caso actualizado correctamente.",
+        variant: "success",
       })
-      fetchCaseData() // Refresh the list
       setIsEditFormOpen(false)
-    } catch (err: any) {
-      console.error("Error saving edited case:", err)
-      toast({
-        title: "Error",
-        description: err.message || "No se pudo actualizar el caso.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleAuditCase = async (caseId: string, newStatus: string, auditNotes?: string) => {
-    try {
-      const updates: Partial<Case> = { status: newStatus }
-      if (auditNotes) {
-        updates.auditNotes = auditNotes
-      }
-
-      const response = await fetch(`/api/cases?id=${caseId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to audit case")
-      }
-
-      toast({
-        title: "Éxito",
-        description: `Caso ${newStatus === "Auditado/Aprobado" ? "aprobado" : "rechazado"} por auditoría.`,
-      })
-      fetchCaseData() // Refresh the list
       setIsAuditFormOpen(false)
+      setIsAddProcedureFormOpen(false)
+      setIsScheduleAppointmentFormOpen(false)
     } catch (err: any) {
-      console.error("Error auditing case:", err)
       toast({
         title: "Error",
-        description: err.message || "No se pudo auditar el caso.",
+        description: err.message || "Failed to update case.",
         variant: "destructive",
       })
     }
   }
 
-  const handleScheduleSave = async (caseId: string, updates: Partial<Case>) => {
+  const handleSaveDocuments = async (caseId: string, documents: Document[]) => {
     try {
-      const response = await fetch(`/api/cases?id=${caseId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to schedule appointment")
-      }
-
+      // The DocumentUploadForm already handles the actual file upload to /api/upload
+      // and returns the URLs. So, we just need to update the case with these URLs.
+      await handleUpdateCase({ documents: documents })
       toast({
         title: "Éxito",
-        description: "Cita agendada correctamente.",
+        description: "Documentos del caso actualizados correctamente.",
+        variant: "success",
       })
-      fetchCaseData() // Refresh the case data
-      setIsScheduleFormOpen(false)
-    } catch (err: any) {
-      console.error("Error scheduling appointment:", err)
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: err.message || "No se pudo agendar la cita.",
+        description: error.message || "Error al guardar los documentos en el caso.",
         variant: "destructive",
       })
     }
+  }
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen">Cargando caso...</div>
+  }
+
+  if (error) {
+    return <div className="flex justify-center items-center h-screen text-red-500">{error}</div>
   }
 
   if (!caseData) {
-    return <div className="flex items-center justify-center min-h-[60vh]">Cargando detalles del caso...</div>
+    return <div className="flex justify-center items-center h-screen">Caso no encontrado.</div>
   }
 
-  const canEdit = userRole === "Superusuario" || userRole === "Coordinador Regional"
-  const canAudit = userRole === "Superusuario" || userRole === "Médico Auditor"
-  const canSchedule = userRole === "Superusuario" || userRole === "Analista Concertado"
-  const canPreInvoice =
-    (userRole === "Superusuario" || userRole === "Jefe Financiero") && caseData.status === "Auditado/Aprobado"
+  const isAnalystConcertado = userRole === "Analista Concertado"
+  const isMedicoAuditor = userRole === "Médico Auditor"
+  const isSuperusuario = userRole === "Superusuario"
+  const isCoordinadorRegional = userRole === "Coordinador Regional" // Keep this for other checks if needed
 
-  // Function to prepare general case details
-  const getGeneralDetails = (data: Case): DetailItem[] => [
-    { icon: <User className="h-4 w-4" />, label: "Cliente", value: data.client },
-    { icon: <Calendar className="h-4 w-4" />, label: "Fecha", value: data.date },
-    { icon: <Hash className="h-4 w-4" />, label: "Nro. Siniestro", value: data.sinisterNo },
-    { icon: <Hash className="h-4 w-4" />, label: "ID #", value: data.idNumber },
-    { icon: <Hash className="h-4 w-4" />, label: "CI Titular", value: data.ciTitular },
-    { icon: <Hash className="h-4 w-4" />, label: "CI Paciente", value: data.ciPatient },
-    { icon: <User className="h-4 w-4" />, label: "Nombre Paciente", value: data.patientName },
-    { icon: <Phone className="h-4 w-4" />, label: "Teléfono Paciente", value: data.patientPhone },
-    { icon: <UserCog className="h-4 w-4" />, label: "Analista Asignado", value: data.assignedAnalystName },
-    { icon: <Tag className="h-4 w-4" />, label: "Estado", value: data.status },
-    { icon: <ClipboardList className="h-4 w-4" />, label: "Tipo de Requerimiento", value: data.typeOfRequirement },
-    { icon: <Scale className="h-4 w-4" />, label: "Baremo Asignado", value: data.baremoName || "N/A" },
-  ]
-
-  // Function to prepare additional patient/creator details
-  const getAdditionalDetails = (data: Case): DetailItem[] => [
-    { icon: <User className="h-4 w-4" />, label: "Creador del Caso", value: data.creatorName },
-    { icon: <Mail className="h-4 w-4" />, label: "Email Creador", value: data.creatorEmail },
-    { icon: <Phone className="h-4 w-4" />, label: "Teléfono Creador", value: data.creatorPhone },
-    { icon: <Phone className="h-4 w-4" />, label: "Otro Teléfono Paciente", value: data.patientOtherPhone },
-    { icon: <Phone className="h-4 w-4" />, label: "Teléfono Fijo Paciente", value: data.patientFixedPhone },
-    { icon: <Calendar className="h-4 w-4" />, label: "Fecha Nac. Paciente", value: data.patientBirthDate },
-    { icon: <Cake className="h-4 w-4" />, label: "Edad Paciente", value: data.patientAge },
-    { icon: <User className="h-4 w-4" />, label: "Género Paciente", value: data.patientGender },
-    { icon: <Tag className="h-4 w-4" />, label: "Colectivo", value: data.collective },
-    { icon: <Stethoscope className="h-4 w-4" />, label: "Diagnóstico", value: data.diagnosis },
-    { icon: <Tag className="h-4 w-4" />, label: "Proveedor", value: data.provider },
-    { icon: <MapPin className="h-4 w-4" />, label: "Estado", value: data.state },
-    { icon: <MapPin className="h-4 w-4" />, label: "Ciudad", value: data.city },
-    { icon: <MapPin className="h-4 w-4" />, label: "Dirección", value: data.address },
-    { icon: <Hash className="h-4 w-4" />, label: "CI Tomador", value: data.holderCI },
-  ]
-
-  // Function to prepare appointment details
-  const getAppointmentDetails = (data: Case): DetailItem[] => [
-    { icon: <Stethoscope className="h-4 w-4" />, label: "Médico", value: data.doctor },
-    { icon: <Calendar className="h-4 w-4" />, label: "Fecha de Cita", value: data.date },
-    { icon: <Calendar className="h-4 w-4" />, label: "Horario", value: data.schedule },
-    { icon: <MapPin className="h-4 w-4" />, label: "Consultorio", value: data.consultory },
-  ]
+  const canEditCase = isSuperusuario || isCoordinadorRegional
+  const canAuditCase = isMedicoAuditor
+  const canAddProcedure = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
+  const canScheduleAppointment = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
+  const canGeneratePreInvoiceGlobally = isSuperusuario || isCoordinadorRegional // Keep this for other uses if needed
 
   return (
-    <div className="flex flex-col gap-4 md:gap-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Detalles del Caso: {caseData.patientName}</h1>
-        <div className="flex gap-2">
-          {canEdit && (
-            <Dialog open={isEditFormOpen} onOpenChange={setIsEditFormOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">Editar Caso</Button>
-              </DialogTrigger>
-              <EditCaseForm
-                isOpen={isEditFormOpen}
-                onClose={() => setIsEditFormOpen(false)}
-                onSave={handleSaveEditedCase}
-                initialData={caseData}
-              />
-            </Dialog>
+    <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+      <div className="flex items-center">
+        <h1 className="font-semibold text-lg md:text-2xl">Detalles del Caso: {caseData.patientName}</h1>
+        <div className="ml-auto flex gap-2">
+          {canEditCase && (
+            <Button onClick={() => setIsEditFormOpen(true)} className="bg-blue-500 hover:bg-blue-600 text-white">
+              Editar Caso
+            </Button>
           )}
-          {canSchedule && caseData.status === "Pendiente" && (
-            <Dialog open={isScheduleFormOpen} onOpenChange={setIsScheduleFormOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">Agendar Cita</Button>
-              </DialogTrigger>
-              <ScheduleAppointmentForm
-                isOpen={isScheduleFormOpen}
-                onClose={() => setIsScheduleFormOpen(false)}
-                onSave={handleScheduleSave}
-                initialData={caseData}
-              />
-            </Dialog>
+          {canAuditCase && (
+            <Button onClick={() => setIsAuditFormOpen(true)} className="bg-purple-500 hover:bg-purple-600 text-white">
+              Auditar Caso
+            </Button>
           )}
-          {canAudit && (caseData.status === "Pendiente por Auditar") && (
-            <Dialog open={isAuditFormOpen} onOpenChange={setIsAuditFormOpen}>
-              <DialogTrigger asChild>
-                <Button>Auditar Caso</Button>
-              </DialogTrigger>
-              <AuditCaseForm
-                isOpen={isAuditFormOpen}
-                onClose={() => setIsAuditFormOpen(false)}
-                onAudit={handleAuditCase}
-                initialData={caseData}
-              />
-            </Dialog>
+          {canAddProcedure && (
+            <Button
+              onClick={() => setIsAddProcedureFormOpen(true)}
+              className="bg-green-500 hover:bg-green-600 text-white"
+            >
+              Añadir Procedimiento
+            </Button>
           )}
-          {canPreInvoice && (
-            <Dialog open={isPreInvoiceFormOpen} onOpenChange={setIsPreInvoiceFormOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700 text-white">Prefacturar</Button>
-              </DialogTrigger>
-              <PreInvoiceDialog
-                isOpen={isPreInvoiceFormOpen}
-                onClose={() => setIsPreInvoiceFormOpen(false)}
-                caseId={caseData.id}
-              />
-            </Dialog>
+          {canScheduleAppointment && (
+            <Button
+              onClick={() => setIsScheduleAppointmentFormOpen(true)}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white"
+            >
+              Agendar Cita
+            </Button>
           )}
         </div>
       </div>
 
-      <Tabs defaultValue="general">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="general">Información General</TabsTrigger>
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <TabsTrigger value="details">Detalles</TabsTrigger>
           <TabsTrigger value="services">Servicios Atendidos</TabsTrigger>
-          <TabsTrigger value="audit">Auditoría y Resultados</TabsTrigger>
+          <TabsTrigger value="audit">Auditoría</TabsTrigger>
+          <TabsTrigger value="documents">Documentos</TabsTrigger> {/* New tab for documents */}
+          <TabsTrigger value="history">Historial</TabsTrigger>
         </TabsList>
-        <TabsContent value="general">
-          <div className="grid gap-4">
-            <CaseDetailSection title="Datos Básicos del Caso" details={getGeneralDetails(caseData)} />
-            <CaseDetailSection title="Datos de la Cita" details={getAppointmentDetails(caseData)} />
-            <CaseDetailSection title="Información Adicional" details={getAdditionalDetails(caseData)} />
-          </div>
+        <TabsContent value="details">
+          <Card>
+            <CardHeader>
+              <CardTitle>Información General del Caso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CaseDetailSection caseData={caseData} />
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="services">
           <Card>
@@ -380,39 +289,137 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             <CardHeader>
               <CardTitle>Notas de Auditoría y Resultados</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4">
-              <div>
-                <h3 className="font-semibold">Estado del Caso:</h3>
-                <p>{caseData.status}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold">Notas de Auditoría:</h3>
-                <p>{caseData.auditNotes || "N/A"}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold">Resultados:</h3>
-                <p>{caseData.results || "N/A"}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold">Costo Clínica:</h3>
-                <p>${caseData.clinicCost?.toFixed(2) || "0.00"}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold">Costo Servicio CGM:</h3>
-                <p>${caseData.cgmServiceCost?.toFixed(2) || "0.00"}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold">Monto Total Factura:</h3>
-                <p>${caseData.totalInvoiceAmount?.toFixed(2) || "0.00"}</p>
-              </div>
-              <div>
-                <h3 className="font-semibold">Factura Generada:</h3>
-                <p>{caseData.invoiceGenerated ? "Sí" : "No"}</p>
+            <CardContent>
+              <div className="grid gap-4">
+                <div>
+                  <h3 className="font-semibold">Resultados:</h3>
+                  <p className="text-muted-foreground">{caseData.results || "N/A"}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold">Notas de Auditoría:</h3>
+                  <p className="text-muted-foreground">{caseData.auditNotes || "N/A"}</p>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  {" "}
+                  {/* New div for buttons */}
+                  {(isSuperusuario || (isAnalystConcertado && caseData.assignedAnalystId === userId)) && (
+                    <Button
+                      onClick={() => setIsDocumentUploadFormOpen(true)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                      Subir informe medico y resultados
+                    </Button>
+                  )}
+                  {(isSuperusuario || isCoordinadorRegional) && (
+                    <Button
+                      onClick={() => setIsPreInvoiceDialogOpen(true)}
+                      className="bg-indigo-500 hover:bg-indigo-600 text-white"
+                    >
+                      Subir prefactura
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="documents">
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentos del Caso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {caseData.documents && caseData.documents.length > 0 ? (
+                <ul className="space-y-2">
+                  {caseData.documents.map((doc, index) => (
+                    <li key={index} className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-gray-600" />
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {doc.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">No hay documentos subidos para este caso.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Historial del Caso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Funcionalidad de historial aún no implementada.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {isEditFormOpen && caseData && (
+          <EditCaseForm
+            isOpen={isEditFormOpen}
+            onClose={() => setIsEditFormOpen(false)}
+            onSave={handleUpdateCase}
+            initialData={caseData}
+          />
+        )}
+
+        {isAuditFormOpen && caseData && (
+          <AuditCaseForm
+            isOpen={isAuditFormOpen}
+            onClose={() => setIsAuditFormOpen(false)}
+            onSave={handleUpdateCase}
+            initialData={caseData}
+          />
+        )}
+
+        {isAddProcedureFormOpen && caseData && (
+          <AddProcedureToCaseForm
+            isOpen={isAddProcedureFormOpen}
+            onClose={() => setIsAddProcedureFormOpen(false)}
+            onSave={handleUpdateCase}
+            caseId={caseData.id}
+            currentServices={caseData.services || []}
+            baremoId={caseData.baremoId || ""}
+          />
+        )}
+
+        {isScheduleAppointmentFormOpen && caseData && (
+          <ScheduleAppointmentForm
+            isOpen={isScheduleAppointmentFormOpen}
+            onClose={() => setIsScheduleAppointmentFormOpen(false)}
+            onSave={handleUpdateCase}
+            initialData={caseData}
+          />
+        )}
+
+        {isPreInvoiceDialogOpen && caseData && (
+          <DocumentUploadForm
+            isOpen={isPreInvoiceDialogOpen}
+            onClose={() => setIsPreInvoiceDialogOpen(false)}
+            caseId={caseData.id}
+            onSave={handleSaveDocuments}
+            initialDocuments={caseData.documents || []}
+          />
+        )}
+
+        {isDocumentUploadFormOpen && caseData && (
+          <DocumentUploadForm
+            isOpen={isDocumentUploadFormOpen}
+            onClose={() => setIsDocumentUploadFormOpen(false)}
+            onSave={handleSaveDocuments}
+            caseId={caseData.id}
+            initialDocuments={caseData.documents || []}
+          />
+        )}
       </Tabs>
-    </div>
+    </main>
   )
 }

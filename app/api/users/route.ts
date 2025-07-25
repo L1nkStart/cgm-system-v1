@@ -10,10 +10,11 @@ export async function GET() {
     const users = rows.map((user: any) => ({
       ...user,
       assignedStates:
-        typeof user.assignedStates === "string" && user.assignedStates.length > 0
-          ? JSON.parse(user.assignedStates)
+        user.assignedStates.length > 0
+          ? user.assignedStates
           : [],
     }))
+    console.log(users)
     return NextResponse.json(users)
   } catch (error) {
     console.error("Error fetching users:", error)
@@ -68,42 +69,45 @@ export async function POST(req: Request) {
   }
 }
 
+
 export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
-    const { email, name, role, password, assignedStates, isActive } = await req.json()
 
     if (!id) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
+    const { email, name, role, password, assignedStates, isActive } = await req.json()
+
     const updates: string[] = []
     const values: any[] = []
 
-    if (email) {
+    if (email !== undefined) {
       updates.push("email = ?")
       values.push(email)
     }
-    if (name) {
+    if (name !== undefined) {
       updates.push("name = ?")
       values.push(name)
     }
-    if (role) {
+    if (role !== undefined) {
       updates.push("role = ?")
       values.push(role)
     }
     if (password) {
-      // Hashear la nueva contraseña si se proporciona
+      // Hash the new password if provided
       const hashedPassword = await bcrypt.hash(password, 10)
       updates.push("password = ?")
       values.push(hashedPassword)
     }
+
     if (assignedStates !== undefined) {
-      // Check for undefined to allow setting to empty array
       updates.push("assignedStates = ?")
-      values.push(assignedStates ? JSON.stringify(assignedStates) : null) // Stringify assignedStates
+      values.push(assignedStates === null ? null : JSON.stringify(assignedStates))
     }
+
     if (isActive !== undefined) {
       updates.push("isActive = ?")
       values.push(isActive)
@@ -113,8 +117,11 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 })
     }
 
-    values.push(id)
-    const [result]: any = await pool.execute(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values)
+    values.push(id) // Add ID to the end for the WHERE clause
+    const [result]: any = await pool.execute(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = ?`,
+      values,
+    )
 
     if (result.affectedRows === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -125,14 +132,18 @@ export async function PUT(req: Request) {
       "SELECT id, email, name, role, assignedStates, isActive FROM users WHERE id = ?",
       [id],
     )
+
     const updatedUser = {
       ...updatedUserRows[0],
-      // Parse assignedStates from JSON string to array, handling empty strings
+      // Parse assignedStates from JSON string to array.
+      // Handle cases where it might be null, an empty string, or a valid JSON string.
       assignedStates:
-        typeof updatedUserRows[0].assignedStates === "string" && updatedUserRows[0].assignedStates.length > 0
-          ? JSON.parse(updatedUserRows[0].assignedStates)
-          : [],
+        typeof updatedUserRows[0].assignedStates === "string" &&
+          updatedUserRows[0].assignedStates.length > 0
+          ? updatedUserRows[0].assignedStates
+          : [], // Default to an empty array if not a valid string or empty
     }
+
     return NextResponse.json(updatedUser)
   } catch (error) {
     console.error("Error updating user:", error)

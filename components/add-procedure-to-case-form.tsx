@@ -63,11 +63,11 @@ export function AddProcedureToCaseForm({
             }
             const data = await res.json()
             if (data && data.procedures) {
-                // Filter out procedures already in existingServices and only show active ones
-                const filteredProcedures = data.procedures.filter(
-                    (p: Procedure) => p.isActive && !existingServices.some((es) => es.name === p.name && es.type === p.type),
-                )
-                setAvailableProcedures(filteredProcedures)
+                // // Filter out procedures already in existingServices and only show active ones
+                // const filteredProcedures = data.procedures.filter(
+                //     (p: Procedure) => p.isActive && !existingServices.some((es) => es.name === p.name && es.type === p.type),
+                // )
+                setAvailableProcedures(data.procedures)
             } else {
                 setAvailableProcedures([])
             }

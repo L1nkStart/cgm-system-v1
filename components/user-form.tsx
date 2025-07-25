@@ -179,7 +179,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
           <MultiSelect
             options={VENEZUELAN_STATES.map((state) => ({ label: state, value: state }))}
             selected={assignedStates}
-            onSelect={handleAssignedStatesChange}
+            onSelectedChange={handleAssignedStatesChange}
             placeholder="Selecciona estados"
           />
         </div>

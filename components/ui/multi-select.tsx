@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronDown } from "lucide-react"
+import { Check, ChevronDown, X } from "lucide-react" // Importa X aquí
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,7 @@ interface MultiSelectOption {
 interface MultiSelectProps {
     options: MultiSelectOption[]
     selected: string[]
-    onSelectedChange: (selected: string[]) => void
+    onSelectedChange: (selected: string[]) => void // Asegúrate de que esta prop siempre sea una función
     placeholder?: string
     className?: string
 }
@@ -34,6 +34,7 @@ export function MultiSelect({
 
     const handleSelect = (value: string) => {
         const newSelected = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]
+        // Aquí es donde se llama a onSelectedChange. Debe ser una función.
         onSelectedChange(newSelected)
         setInputValue("") // Clear input after selection
     }
@@ -63,7 +64,7 @@ export function MultiSelect({
                                         <button
                                             type="button"
                                             onClick={(e) => {
-                                                e.stopPropagation()
+                                                e.stopPropagation() // Evita que el clic en la X cierre el popover
                                                 handleSelect(value)
                                             }}
                                             className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -80,7 +81,7 @@ export function MultiSelect({
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                 <Command>
                     <CommandInput placeholder="Buscar estado..." value={inputValue} onValueChange={setInputValue} />
                     <CommandList>
@@ -101,5 +102,3 @@ export function MultiSelect({
         </Popover>
     )
 }
-
-import { X } from "lucide-react" // Import X icon

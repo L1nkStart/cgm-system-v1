@@ -16,6 +16,16 @@ export default async function DashboardPage() {
     "Médico Auditor",
     "Jefe Financiero",
   ]
+  if (!session) {
+    redirect("/login")
+  }
+  // Redirigir a dashboards específicos si es necesario, o mostrar un dashboard general
+  if (session.role === "Analista Concertado") {
+    redirect("/analyst-dashboard")
+  }
+  if (session.role === "Médico Auditor") {
+    redirect("/auditor-dashboard")
+  }
   if (!hasRequiredRole(userRole, allowedRoles)) {
     redirect("/login") // O a una página de acceso denegado
   }

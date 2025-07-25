@@ -11,6 +11,11 @@ interface Service {
   attended: boolean
 }
 
+interface Document {
+  name: string
+  url: string
+}
+
 interface Case {
   id: string
   client: string
@@ -52,7 +57,9 @@ interface Case {
   typeOfRequirement?: string
   baremoId?: string // Nuevo campo para el ID del baremo
   baremoName?: string // Para display, no en DB directamente
+  documents?: Document[] // New: documents field
 }
+
 
 export async function GET(req: Request) {
   try {
@@ -63,7 +70,6 @@ export async function GET(req: Request) {
     const statesFilter = searchParams.get("states") // New: filter by states
 
     const session = await getFullUserSession() // Get current user session
-
     console.log("API /api/cases GET: statesFilter from URL =", statesFilter)
     console.log(
       "API /api/cases GET: session.role =",
@@ -73,12 +79,12 @@ export async function GET(req: Request) {
     )
 
     let query = `
-    SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
-    FROM cases c
-    LEFT JOIN users u ON c.assignedAnalystId = u.id
-    LEFT JOIN baremos b ON c.baremoId = b.id
-    WHERE 1=1
-  `
+      SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
+      FROM cases c
+      LEFT JOIN users u ON c.assignedAnalystId = u.id
+      LEFT JOIN baremos b ON c.baremoId = b.id
+      WHERE 1=1
+    `
     const params: any[] = []
 
     if (id) {
@@ -96,8 +102,9 @@ export async function GET(req: Request) {
     }
 
     // Apply state filtering based on user role and assigned states
+    // Note: session.assignedStates should already be an array if handled correctly on user login/fetch
     if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
-      const userAssignedStates = session.assignedStates || []
+      const userAssignedStates = session.assignedStates || [] // Ensure it's an array
       if (userAssignedStates.length > 0) {
         query += ` AND c.state IN (${userAssignedStates.map(() => "?").join(",")})`
         params.push(...userAssignedStates)
@@ -108,31 +115,56 @@ export async function GET(req: Request) {
     } else if (statesFilter) {
       // Allow filtering by states if not an analyst/auditor (e.g., for Superusuario)
       const states = statesFilter.split(",")
-      query += ` AND c.state IN (${states.map(() => "?").join(",")})`
-      params.push(...states)
+      // Added a check to ensure 'states' is not empty after split
+      if (states.length > 0 && states[0] !== "") {
+        query += ` AND c.state IN (${states.map(() => "?").join(",")})`
+        params.push(...states)
+      }
     }
 
     const [rows]: any = await pool.execute(query, params)
 
     // Parse JSON fields and ensure correct types
-    const cases = rows.map((row: any) => ({
-      ...row,
-      // Modificación aquí: Solo parsear si row.services es una cadena no vacía
-      services: row.services || [],
-      // Convert Date objects to string if needed for consistency with mock
-      date: row.date ? new Date(row.date).toISOString().split("T")[0] : null,
-      patientBirthDate: row.patientBirthDate ? new Date(row.patientBirthDate).toISOString().split("T")[0] : null,
-      // Convert numeric fields to actual numbers
-      clinicCost: row.clinicCost !== null ? Number(row.clinicCost) : null,
-      cgmServiceCost: row.cgmServiceCost !== null ? Number(row.cgmServiceCost) : null,
-      totalInvoiceAmount: row.totalInvoiceAmount !== null ? Number(row.totalInvoiceAmount) : null,
-    }))
+    const cases = rows.map((row: any) => {
+      let services = []
+      let documents = []
+
+      if (typeof row.services === "string" && row.services.length > 0) {
+        try {
+          services = JSON.parse(row.services)
+        } catch (error) {
+          console.error(`Error parsing services for case ID ${row.id}:`, row.services, error)
+        }
+      }
+
+      if (typeof row.documents === "string" && row.documents.length > 0) {
+        try {
+          documents = JSON.parse(row.documents)
+        } catch (error) {
+          console.error(`Error parsing documents for case ID ${row.id}:`, row.documents, error)
+        }
+      }
+
+      return {
+        ...row,
+        services: services,
+        documents: documents,
+        // Convert Date objects to string if needed for consistency
+        date: row.date ? new Date(row.date).toISOString().split("T")[0] : null,
+        patientBirthDate: row.patientBirthDate ? new Date(row.patientBirthDate).toISOString().split("T")[0] : null,
+        // Convert numeric fields to actual numbers, handling potential string numbers from DB
+        clinicCost: row.clinicCost !== null ? Number(row.clinicCost) : null,
+        cgmServiceCost: row.cgmServiceCost !== null ? Number(row.cgmServiceCost) : null,
+        totalInvoiceAmount: row.totalInvoiceAmount !== null ? Number(row.totalInvoiceAmount) : null,
+      }
+    })
 
     if (id) {
       if (cases.length > 0) {
         // If fetching a single case, ensure it matches the user's assigned states if applicable
         if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
           const userAssignedStates = session.assignedStates || []
+          // Assuming `cases[0].state` is a simple string like "Carabobo"
           if (userAssignedStates.length > 0 && !userAssignedStates.includes(cases[0].state)) {
             return NextResponse.json({ error: "Access denied to this case based on assigned states" }, { status: 403 })
           }
@@ -177,6 +209,7 @@ export async function POST(req: Request) {
       services,
       typeOfRequirement,
       baremoId, // Nuevo campo
+      documents, // New: documents field
     } = await req.json()
 
     if (
@@ -203,7 +236,7 @@ export async function POST(req: Request) {
     const [analystRows]: any = await pool.execute("SELECT assignedStates FROM users WHERE id = ?", [assignedAnalystId])
     const analyst = analystRows[0]
     if (analyst && analyst.assignedStates) {
-      const analystStates = JSON.parse(analyst.assignedStates)
+      const analystStates = analyst.assignedStates
       if (!analystStates.includes(state)) {
         return NextResponse.json(
           { error: `El analista asignado no puede manejar casos del estado: ${state}` },
@@ -256,6 +289,7 @@ export async function POST(req: Request) {
       services: services || [],
       typeOfRequirement: typeOfRequirement || "CONSULTA",
       baremoId, // Incluir el baremoId
+      documents: documents || [], // Initialize documents
     }
 
     await pool.execute(
@@ -264,8 +298,8 @@ export async function POST(req: Request) {
      assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
      cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
      patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
-     diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId
-   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId, documents
+   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
         newCase.client,
@@ -305,6 +339,7 @@ export async function POST(req: Request) {
         JSON.stringify(newCase.services),
         newCase.typeOfRequirement,
         newCase.baremoId, // Añadir baremoId a los valores
+        JSON.stringify(newCase.documents), // Save documents
       ],
     )
 
@@ -327,11 +362,19 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Case ID is required" }, { status: 400 })
     }
 
+    // Fetch current case data to determine status change logic and analyst state validation
+    const [currentCaseRows]: any = await pool.execute(
+      "SELECT assignedAnalystId, state, status, documents FROM cases WHERE id = ?",
+      [id],
+    )
+    const currentCase = currentCaseRows[0]
+
+    if (!currentCase) {
+      return NextResponse.json({ error: "Case not found" }, { status: 404 })
+    }
+
     // Validate if assignedAnalystId or state is being updated
     if (updates.assignedAnalystId || updates.state) {
-      const [currentCaseRows]: any = await pool.execute("SELECT assignedAnalystId, state FROM cases WHERE id = ?", [id])
-      const currentCase = currentCaseRows[0]
-
       const newAssignedAnalystId = updates.assignedAnalystId || currentCase.assignedAnalystId
       const newCaseState = updates.state || currentCase.state
 
@@ -344,8 +387,8 @@ export async function PUT(req: Request) {
         if (analyst) {
           // Safely parse assignedStates, handling null or empty string
           const analystStates =
-            analyst.assignedStates && typeof analyst.assignedStates === "string" && analyst.assignedStates.length > 0
-              ? JSON.parse(analyst.assignedStates)
+            analyst.assignedStates && analyst.assignedStates.length > 0
+              ? analyst.assignedStates
               : []
 
           if (analyst.role === "Analista Concertado" || analyst.role === "Médico Auditor") {
@@ -366,12 +409,19 @@ export async function PUT(req: Request) {
       }
     }
 
+    // Logic for automatic status change to "Pendiente por Auditar" after document upload
+    if (updates.documents && currentCase.status === "Atendido") {
+      updates.status = "Pendiente por Auditar"
+      console.log(`Case ${id} status changed to 'Pendiente por Auditar' due to document upload.`)
+    }
+
     const updateFields: string[] = []
     const values: any[] = []
 
     for (const key in updates) {
       if (updates.hasOwnProperty(key)) {
-        if (key === "services") {
+        if (key === "services" || key === "documents") {
+          // Handle both services and documents as JSON
           updateFields.push(`${key} = ?`)
           values.push(JSON.stringify(updates[key])) // Stringify JSON field when sending to DB
         } else {
@@ -396,8 +446,8 @@ export async function PUT(req: Request) {
     const [updatedCaseRows]: any = await pool.execute("SELECT * FROM cases WHERE id = ?", [id])
     const updatedCase = {
       ...updatedCaseRows[0],
-      // REMOVED JSON.parse(): services is already an object/array from the DB
-      services: updatedCaseRows[0].services || [],
+      services: updatedCaseRows[0].services ? updatedCaseRows[0].services : [],
+      documents: updatedCaseRows[0].documents ? updatedCaseRows[0].documents : [],
       date: updatedCaseRows[0].date ? new Date(updatedCaseRows[0].date).toISOString().split("T")[0] : null,
       patientBirthDate: updatedCaseRows[0].patientBirthDate
         ? new Date(updatedCaseRows[0].patientBirthDate).toISOString().split("T")[0]

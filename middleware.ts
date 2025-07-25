@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
   const sessionPayload = await getCookieSessionPayload()
   const { pathname } = request.nextUrl
 
-  // Rutas públicas que no requieren autenticación
+  // // Rutas públicas que no requieren autenticación
   const publicPaths = ["/login", "/api/auth/login"]
 
   // Si la ruta es pública, permite el acceso

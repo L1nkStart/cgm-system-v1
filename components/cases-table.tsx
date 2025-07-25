@@ -127,7 +127,7 @@ export function CasesTable({
 
   useEffect(() => {
     fetchCases()
-  }, [fetchUrl, analystId, statusFilter, userAssignedStates]) // Re-fetch when these props change
+  }, [fetchUrl, analystId]) // Re-fetch when these props change
 
   const getStatusColor = (status: string) => {
     switch (status) {
