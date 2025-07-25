@@ -76,7 +76,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">PRUEBA Iniciar Sesión</CardTitle>
+          <CardTitle className="text-2xl font-bold">PRUEBA 2 Iniciar Sesión</CardTitle>
           <CardDescription>Ingresa tu correo y contraseña para acceder a tu cuenta.</CardDescription>
         </CardHeader>
         <CardContent>
