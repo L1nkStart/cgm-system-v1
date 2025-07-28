@@ -14,7 +14,8 @@ import { AttendedServicesTable } from "@/components/attended-services-table"
 import { ScheduleAppointmentForm } from "@/components/schedule-appointment-form"
 import { PreInvoiceDialog } from "@/components/pre-invoice-dialog"
 import { DocumentUploadForm } from "@/components/document-upload-form" // Import the new component
-import { FileText } from "lucide-react"
+import { Download, FileText } from "lucide-react"
+import { PreInvoiceUploadForm } from "@/components/pre-invoice-upload-form"
 
 interface Service {
   name: string
@@ -26,6 +27,8 @@ interface Service {
 interface Document {
   name: string
   url: string
+  type?: string
+  size?: number
 }
 
 interface Case {
@@ -69,7 +72,8 @@ interface Case {
   typeOfRequirement?: string
   baremoId?: string
   baremoName?: string
-  documents?: Document[] // Add documents to Case interface
+  documents?: Document[]
+  preInvoiceDocuments?: Document[]
 }
 
 export default function CaseDetailPage({ params }: { params: { id: string } }) {
@@ -84,7 +88,8 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const [isAddProcedureFormOpen, setIsAddProcedureFormOpen] = useState(false)
   const [isScheduleAppointmentFormOpen, setIsScheduleAppointmentFormOpen] = useState(false)
   const [isPreInvoiceDialogOpen, setIsPreInvoiceDialogOpen] = useState(false)
-  const [isDocumentUploadFormOpen, setIsDocumentUploadFormOpen] = useState(false) // State for document upload form
+  const [isDocumentUploadFormOpen, setIsDocumentUploadFormOpen] = useState(false)
+  const [isPreInvoiceUploadFormOpen, setIsPreInvoiceUploadFormOpen] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
@@ -256,6 +261,32 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     }
   }
 
+  const handleSavePreInvoiceDocuments = async (caseId: string, documents: Document[]) => {
+    try {
+      await handleUpdateCase({ preInvoiceDocuments: documents })
+      toast({
+        title: "Éxito",
+        description: "Prefacturas del caso actualizadas correctamente.",
+        variant: "default",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error al guardar las prefacturas en el caso.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
+
   if (loading) {
     return <div className="flex justify-center items-center h-screen">Cargando caso...</div>
   }
@@ -348,17 +379,107 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <CardTitle>Notas de Auditoría y Resultados</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4">
-                <div>
-                  <h3 className="font-semibold">Resultados:</h3>
-                  <p className="text-muted-foreground">{caseData.results || "N/A"}</p>
+              <div className="grid gap-6">
+                <div className="grid gap-4">
+                  <div>
+                    <h3 className="font-semibold">Resultados:</h3>
+                    <p className="text-muted-foreground">{caseData.results || "N/A"}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Notas de Auditoría:</h3>
+                    <p className="text-muted-foreground">{caseData.auditNotes || "N/A"}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold">Notas de Auditoría:</h3>
-                  <p className="text-muted-foreground">{caseData.auditNotes || "N/A"}</p>
+
+                {/* Documents Section */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-orange-600" />
+                      Informes Médicos y Resultados de Exámenes
+                    </h3>
+                    {caseData.documents && caseData.documents.length > 0 ? (
+                      <div className="grid gap-2">
+                        {caseData.documents.map((doc, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileText className="h-5 w-5 text-orange-600" />
+                              <div>
+                                <p className="font-medium">{doc.name}</p>
+                                {doc.size && (
+                                  <p className="text-xs text-muted-foreground">{formatFileSize(doc.size)}</p>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                              className="hover:bg-orange-50 hover:border-orange-200 bg-transparent"
+                            >
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                <Download className="h-4 w-4 mr-2" />
+                                Ver/Descargar
+                              </a>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-sm bg-muted/30 p-3 rounded-lg">
+                        No hay informes médicos ni resultados de exámenes subidos para este caso.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-indigo-600" />
+                      Prefacturas
+                    </h3>
+                    {caseData.preInvoiceDocuments && caseData.preInvoiceDocuments.length > 0 ? (
+                      <div className="grid gap-2">
+                        {caseData.preInvoiceDocuments.map((doc, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileText className="h-5 w-5 text-indigo-600" />
+                              <div>
+                                <p className="font-medium">{doc.name}</p>
+                                {doc.size && (
+                                  <p className="text-xs text-muted-foreground">{formatFileSize(doc.size)}</p>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                              className="hover:bg-indigo-50 hover:border-indigo-200 bg-transparent"
+                            >
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                <Download className="h-4 w-4 mr-2" />
+                                Ver/Descargar
+                              </a>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-sm bg-muted/30 p-3 rounded-lg">
+                        No hay prefacturas subidas para este caso.
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2 mt-4">
-                  {" "}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-4 border-t">
                   {(isSuperusuario || (isAnalystConcertado && caseData.assignedAnalystId === userId)) && (
                     <Button
                       onClick={() => setIsDocumentUploadFormOpen(true)}
@@ -369,7 +490,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                   )}
                   {(isSuperusuario || isCoordinadorRegional) && (
                     <Button
-                      onClick={() => setIsPreInvoiceDialogOpen(true)}
+                      onClick={() => setIsPreInvoiceUploadFormOpen(true)}
                       className="bg-indigo-500 hover:bg-indigo-600 text-white"
                     >
                       Subir prefactura
@@ -474,6 +595,18 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             onSave={handleSaveDocuments}
             caseId={caseData.id}
             initialDocuments={caseData.documents || []}
+            uploadType="medical-results"
+            title="Subir Informe Médico y Resultados"
+          />
+        )}
+
+        {isPreInvoiceUploadFormOpen && caseData && (
+          <PreInvoiceUploadForm
+            isOpen={isPreInvoiceUploadFormOpen}
+            onClose={() => setIsPreInvoiceUploadFormOpen(false)}
+            onSave={handleSavePreInvoiceDocuments}
+            caseId={caseData.id}
+            initialDocuments={caseData.preInvoiceDocuments || []}
           />
         )}
       </Tabs>

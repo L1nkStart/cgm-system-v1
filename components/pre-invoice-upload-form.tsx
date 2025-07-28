@@ -17,25 +17,21 @@ interface Document {
     size?: number
 }
 
-interface DocumentUploadFormProps {
+interface PreInvoiceUploadFormProps {
     isOpen: boolean
     onClose: () => void
     onSave: (caseId: string, documents: Document[]) => void
     caseId: string
     initialDocuments?: Document[]
-    uploadType?: "medical-results" | "pre-invoice"
-    title?: string
 }
 
-export function DocumentUploadForm({
+export function PreInvoiceUploadForm({
     isOpen,
     onClose,
     onSave,
     caseId,
     initialDocuments = [],
-    uploadType = "medical-results",
-    title,
-}: DocumentUploadFormProps) {
+}: PreInvoiceUploadFormProps) {
     const [selectedFiles, setSelectedFiles] = useState<File[]>([])
     const [existingDocuments, setExistingDocuments] = useState<Document[]>(initialDocuments)
     const [isUploading, setIsUploading] = useState(false)
@@ -45,15 +41,6 @@ export function DocumentUploadForm({
     useEffect(() => {
         setExistingDocuments(initialDocuments)
     }, [initialDocuments])
-
-    const getAcceptedFileTypes = () => {
-        if (uploadType === "pre-invoice") {
-            return ".pdf,.jpg,.jpeg,.png,.xls,.xlsx"
-        }
-        return ".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
-    }
-
-    const getMaxFileSize = () => "10MB"
 
     const formatFileSize = (bytes: number) => {
         if (bytes === 0) return "0 Bytes"
@@ -111,7 +98,7 @@ export function DocumentUploadForm({
             selectedFiles.forEach((file) => {
                 formData.append("files", file)
             })
-            formData.append("uploadType", uploadType)
+            formData.append("uploadType", "pre-invoice")
             formData.append("caseId", caseId)
 
             try {
@@ -122,7 +109,7 @@ export function DocumentUploadForm({
 
                 if (!response.ok) {
                     const errorData = await response.json()
-                    throw new Error(errorData.error || "Error al subir archivos.")
+                    throw new Error(errorData.error || "Error al subir prefactura.")
                 }
 
                 const data = await response.json()
@@ -130,12 +117,12 @@ export function DocumentUploadForm({
 
                 toast({
                     title: "Éxito",
-                    description: data.message || "Documentos subidos correctamente.",
+                    description: data.message || "Prefactura subida correctamente.",
                     variant: "default",
                 })
             } catch (error: any) {
                 toast({
-                    title: "Error al subir documentos",
+                    title: "Error al subir prefactura",
                     description: error.message || "Ocurrió un error inesperado.",
                     variant: "destructive",
                 })
@@ -152,26 +139,24 @@ export function DocumentUploadForm({
         onClose()
     }
 
-    const dialogTitle = title || (uploadType === "pre-invoice" ? "Subir Prefactura" : "Subir Informe Médico y Resultados")
-
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>{dialogTitle}</DialogTitle>
+                    <DialogTitle>Subir Prefactura</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="grid gap-4 py-4">
                     <Alert>
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
-                            Tipos de archivo permitidos: {getAcceptedFileTypes().replace(/\./g, "").toUpperCase()}
+                            Tipos de archivo permitidos: PDF, JPG, PNG, XLS, XLSX
                             <br />
-                            Tamaño máximo por archivo: {getMaxFileSize()}
+                            Tamaño máximo por archivo: 10MB
                         </AlertDescription>
                     </Alert>
 
                     <div className="space-y-2">
-                        <Label htmlFor="fileUpload">Seleccionar Archivos</Label>
+                        <Label htmlFor="fileUpload">Seleccionar Archivos de Prefactura</Label>
                         <div className="flex gap-2 items-center">
                             <Input
                                 id="fileUpload"
@@ -180,7 +165,7 @@ export function DocumentUploadForm({
                                 onChange={handleFileChange}
                                 ref={fileInputRef}
                                 className="hidden"
-                                accept={getAcceptedFileTypes()}
+                                accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"
                             />
                             <Button
                                 type="button"
@@ -196,7 +181,7 @@ export function DocumentUploadForm({
 
                     {(selectedFiles.length > 0 || existingDocuments.length > 0) && (
                         <div className="space-y-2">
-                            <Label>Archivos Seleccionados / Documentos Existentes</Label>
+                            <Label>Archivos Seleccionados / Prefacturas Existentes</Label>
                             <div className="border rounded-md p-2 max-h-60 overflow-y-auto">
                                 {existingDocuments.map((doc, index) => (
                                     <div
@@ -266,8 +251,8 @@ export function DocumentUploadForm({
                         <Button type="button" variant="outline" onClick={onClose} disabled={isUploading}>
                             Cancelar
                         </Button>
-                        <Button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white" disabled={isUploading}>
-                            {isUploading ? "Subiendo..." : "Guardar Documentos"}
+                        <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isUploading}>
+                            {isUploading ? "Subiendo..." : "Guardar Prefactura"}
                         </Button>
                     </DialogFooter>
                 </form>
