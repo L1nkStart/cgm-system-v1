@@ -175,8 +175,6 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
 
   const handleSaveDocuments = async (caseId: string, documents: Document[]) => {
     try {
-      // The DocumentUploadForm already handles the actual file upload to /api/upload
-      // and returns the URLs. So, we just need to update the case with these URLs.
       await handleUpdateCase({ documents: documents })
       toast({
         title: "Éxito",
@@ -361,7 +359,6 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                 </div>
                 <div className="flex gap-2 mt-4">
                   {" "}
-                  {/* New div for buttons */}
                   {(isSuperusuario || (isAnalystConcertado && caseData.assignedAnalystId === userId)) && (
                     <Button
                       onClick={() => setIsDocumentUploadFormOpen(true)}
