@@ -280,6 +280,8 @@ export function CasesTable({
   if (loading) return <div className="text-center py-8">Cargando casos...</div>
   if (error) return <div className="text-center py-8 text-red-500">Error: {error}</div>
 
+  const stickyColumnWidth = '100px';
+
   return (
     <div className="mt-6">
       <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-2">
@@ -307,7 +309,6 @@ export function CasesTable({
               <TableHead>Médico</TableHead>
               <TableHead>Horario</TableHead>
               <TableHead>Consultorio</TableHead>
-              <TableHead>Status</TableHead>
               {userRole === "Jefe Financiero" && (
                 <>
                   <TableHead>Costo Clínica</TableHead>
@@ -315,7 +316,8 @@ export function CasesTable({
                   <TableHead>Total</TableHead>
                 </>
               )}
-              <TableHead>Acción</TableHead>
+              <TableHead className="sticky right-[100px] z-20 bg-background">Status</TableHead>
+              <TableHead className="sticky right-0 z-20 bg-background">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -345,9 +347,6 @@ export function CasesTable({
                   <TableCell>{caseItem.doctor || "N/A"}</TableCell>
                   <TableCell>{caseItem.schedule || "N/A"}</TableCell>
                   <TableCell>{caseItem.consultory || "N/A"}</TableCell>
-                  <TableCell>
-                    <Badge className={`${getStatusColor(caseItem.status)} text-white`}>{caseItem.status}</Badge>
-                  </TableCell>
                   {userRole === "Jefe Financiero" && (
                     <>
                       <TableCell>${(caseItem.clinicCost || 0).toFixed(2)}</TableCell>
@@ -355,7 +354,12 @@ export function CasesTable({
                       <TableCell>${(caseItem.totalInvoiceAmount || 0).toFixed(2)}</TableCell>
                     </>
                   )}
-                  <TableCell>
+                  {/* Columna del estado (Badge) */}
+                  <TableCell className={`sticky right-[${stickyColumnWidth}] min-w-[${stickyColumnWidth}] z-10 bg-background`}>
+                    <Badge className={`${getStatusColor(caseItem.status)} text-white`}>{caseItem.status}</Badge>
+                  </TableCell>
+                  {/* Columna de acciones (Ver botón) */}
+                  <TableCell className={`sticky right-0 min-w-[${stickyColumnWidth}] z-10 bg-background`}>
                     <Link href={`/cases/${caseItem.id}`}>
                       <Button variant="outline" size="sm">
                         Ver

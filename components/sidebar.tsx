@@ -162,11 +162,13 @@ export function AppSidebar({
   // Añadido para depuración:
   console.log("AppSidebar - Secciones de navegación filtradas:", filteredNavSections)
 
+  //logo.png
+
   return (
     <Sidebar>
       <SidebarHeader>
         <Link href="/dashboard" className="flex items-center gap-2 px-2 py-4">
-          <Image src="/citamed-logo.png" alt="Citamed Logo" width={40} height={40} className="rounded-full" />
+          <Image src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRvaO09WlVAzYrDYJc_F8gz1RlQPNuWg8oJKQ&s" alt="Logo" width={40} height={40} className="rounded-full" />
           <span className="text-lg font-semibold">CGM Sistema</span>
         </Link>
       </SidebarHeader>
