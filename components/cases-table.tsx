@@ -356,20 +356,11 @@ export function CasesTable({
                     </>
                   )}
                   <TableCell>
-                    {/* Condicionalmente mostrar botones de acción basados en el rol */}
-                    {(userRole === "Analista Concertado" && caseItem.status === "Pendiente") ||
-                      (userRole === "Médico Auditor" && caseItem.status === "Pendiente por Auditar") ||
-                      (userRole === "Jefe Financiero" && caseItem.status === "Auditado/Aprobado") ? (
-                      <Button variant="outline" size="sm" onClick={() => handleViewEditClick(caseItem)}>
-                        {userRole === "Jefe Financiero" ? "Generar Pre-factura" : "Ver / Editar"}
+                    <Link href={`/cases/${caseItem.id}`}>
+                      <Button variant="outline" size="sm">
+                        Ver
                       </Button>
-                    ) : (
-                      <Link href={`/cases/${caseItem.id}`}>
-                        <Button variant="outline" size="sm">
-                          Ver
-                        </Button>
-                      </Link>
-                    )}
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))
