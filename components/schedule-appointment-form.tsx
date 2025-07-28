@@ -38,8 +38,6 @@ export function ScheduleAppointmentForm({ isOpen, onClose, onSave, initialData }
             setDoctor(initialData.doctor || "")
             setSchedule(initialData.schedule || "")
             setConsultory(initialData.consultory || "")
-            // No pre-llenamos appointmentDate desde initialData.date, ya que es la fecha de creación del caso.
-            // El usuario debe seleccionar la fecha de la cita.
             setAppointmentDate("")
         }
     }, [initialData])

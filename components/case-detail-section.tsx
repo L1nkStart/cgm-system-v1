@@ -108,6 +108,8 @@ export function CaseDetailSection({ caseData }: CaseDetailSectionProps) {
     { icon: <Stethoscope />, label: "Doctor", value: caseData.doctor || "N/A" },
     { icon: <Clock />, label: "Horario", value: caseData.schedule || "N/A" },
     { icon: <Building />, label: "Consultorio", value: caseData.consultory || "N/A" },
+    { icon: <Calendar />, label: "Fecha", value: caseData.date || "N/A" },
+
   ].filter((item) => item.value !== "N/A")
 
   const costDetails = [
@@ -127,7 +129,7 @@ export function CaseDetailSection({ caseData }: CaseDetailSectionProps) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Información del Caso</CardTitle>
+          <CardTitle>Información del Caso </CardTitle>
         </CardHeader>
         <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
           {caseDetails.map((item, index) => (

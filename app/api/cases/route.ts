@@ -434,7 +434,7 @@ export async function PUT(req: Request) {
     if (updateFields.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 })
     }
-
+    console.log("Debug: ", updateFields)
     values.push(id)
     const [result]: any = await pool.execute(`UPDATE cases SET ${updateFields.join(", ")} WHERE id = ?`, values)
 

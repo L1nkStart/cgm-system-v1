@@ -157,7 +157,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
       setCaseData(updatedCase)
       toast({
         title: "Éxito",
-        description: "Caso actualizado correctamente.",
+        description: `Caso ${id} actualizado correctamente.`,
         variant: "success",
       })
       setIsEditFormOpen(false)
@@ -167,7 +167,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     } catch (err: any) {
       toast({
         title: "Error",
-        description: err.message || "Failed to update case.",
+        description: err.message || `Failed to update case ${id}.`,
         variant: "destructive",
       })
     }
@@ -180,13 +180,79 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
       await handleUpdateCase({ documents: documents })
       toast({
         title: "Éxito",
-        description: "Documentos del caso actualizados correctamente.",
+        description: `Documentos del caso ${id} actualizados correctamente.`,
         variant: "success",
       })
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Error al guardar los documentos en el caso.",
+        description: error.message || `Error al guardar los documentos en el caso ${id}.`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSaveEditedCase = async (caseId: string, updates: Partial<Case>) => {
+    try {
+      const response = await fetch(`/api/cases?id=${caseId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update case")
+      }
+
+      toast({
+        title: "Éxito",
+        description: `Caso ${id} actualizado correctamente.`,
+      })
+      fetchCaseData() // Refresh the list
+      setIsEditFormOpen(false)
+    } catch (err: any) {
+      console.error("Error saving edited case:", err)
+      toast({
+        title: "Error",
+        description: err.message || `No se pudo actualizar el caso ${id}.`,
+        variant: "destructive",
+      })
+    }
+  }
+  const handleAuditCase = async (caseId: string, newStatus: string, auditNotes?: string) => {
+    try {
+      const updates: Partial<Case> = { status: newStatus }
+      if (auditNotes) {
+        updates.auditNotes = auditNotes
+      }
+
+      const response = await fetch(`/api/cases?id=${caseId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to audit case")
+      }
+
+      toast({
+        title: "Éxito",
+        description: `Caso ${id} ha sido ${newStatus === "Auditado/Aprobado" ? "aprobado" : "rechazado"} por auditoría.`,
+      })
+      fetchCaseData() // Refresh the list
+      setIsAuditFormOpen(false)
+    } catch (err: any) {
+      console.error("Error auditing case:", err)
+      toast({
+        title: "Error",
+        description: err.message || `No se pudo auditar el caso ${id}.`,
         variant: "destructive",
       })
     }
@@ -214,6 +280,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const canAddProcedure = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
   const canScheduleAppointment = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
   const canGeneratePreInvoiceGlobally = isSuperusuario || isCoordinadorRegional // Keep this for other uses if needed
+  const hasProcedures = caseData.services ? true : false
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
@@ -230,18 +297,11 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               Auditar Caso
             </Button>
           )}
-          {canAddProcedure && (
-            <Button
-              onClick={() => setIsAddProcedureFormOpen(true)}
-              className="bg-green-500 hover:bg-green-600 text-white"
-            >
-              Añadir Procedimiento
-            </Button>
-          )}
-          {canScheduleAppointment && (
+          {canScheduleAppointment && caseData.status === "Pendiente" && (
             <Button
               onClick={() => setIsScheduleAppointmentFormOpen(true)}
               className="bg-yellow-500 hover:bg-yellow-600 text-white"
+              disabled={hasProcedures}
             >
               Agendar Cita
             </Button>
@@ -260,7 +320,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
         <TabsContent value="details">
           <Card>
             <CardHeader>
-              <CardTitle>Información General del Caso</CardTitle>
+              <CardTitle>Información General del Caso - <span className="text-cyan-500">{caseData.status}</span></CardTitle>
             </CardHeader>
             <CardContent>
               <CaseDetailSection caseData={caseData} />
@@ -366,7 +426,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <EditCaseForm
             isOpen={isEditFormOpen}
             onClose={() => setIsEditFormOpen(false)}
-            onSave={handleUpdateCase}
+            onSave={handleSaveEditedCase}
             initialData={caseData}
           />
         )}
@@ -375,7 +435,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <AuditCaseForm
             isOpen={isAuditFormOpen}
             onClose={() => setIsAuditFormOpen(false)}
-            onSave={handleUpdateCase}
+            onAudit={handleAuditCase}
             initialData={caseData}
           />
         )}
@@ -395,7 +455,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <ScheduleAppointmentForm
             isOpen={isScheduleAppointmentFormOpen}
             onClose={() => setIsScheduleAppointmentFormOpen(false)}
-            onSave={handleUpdateCase}
+            onSave={(caseId, updates) => handleUpdateCase(updates)}
             initialData={caseData}
           />
         )}
