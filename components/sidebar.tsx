@@ -19,6 +19,7 @@ import {
   CreditCard,
   Banknote,
   Stethoscope,
+  Building2,
 } from "lucide-react"
 import {
   Sidebar,
@@ -95,6 +96,18 @@ export function AppSidebar({
           href: "/cancelled-cases",
           icon: XCircle,
           roles: ["Superusuario", "Coordinador Regional", "Analista Concertado", "Médico Auditor", "Jefe Financiero"],
+        },
+      ],
+    },
+    {
+      title: "Clientes",
+
+      items: [
+        {
+          title: "Clientes",
+          href: "/clients",
+          icon: Building2,
+          roles: ["Superusuario", "Jefe Financiero", "Coordinador Regional"],
         },
       ],
     },
