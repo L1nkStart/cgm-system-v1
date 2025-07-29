@@ -8,17 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea" // Importar Textarea
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { MinusCircle } from "lucide-react" // Importar MinusCircle
+import { MinusCircle } from "lucide-react"
 
 interface Analyst {
   id: string
   email: string
   name: string
-  role: string // Asegurarse de que el rol esté presente para el filtrado
-  assignedStates?: string[] // New: assigned states for the analyst
+  role: string
+  assignedStates?: string[]
 }
 
 interface Baremo {
@@ -43,16 +43,25 @@ interface Service {
   attended: boolean
 }
 
+interface Client {
+  id: string
+  name: string
+  rif: string
+  baremoId?: string
+  baremoName?: string
+  baremoClinicName?: string
+}
+
 export function NewCaseForm() {
-  const [client, setClient] = useState("")
+  const [clientId, setClientId] = useState("")
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [date, setDate] = useState("")
   const [patientName, setPatientName] = useState("")
-  const [ciPatient, setCiPatient] = useState("") // Cambiado de patientCI a ciPatient
+  const [ciPatient, setCiPatient] = useState("")
   const [patientPhone, setPatientPhone] = useState("")
-  const [assignedAnalystId, setAssignedAnalystId] = useState("") // Cambiado de analystId a assignedAnalystId
+  const [assignedAnalystId, setAssignedAnalystId] = useState("")
   const [analysts, setAnalysts] = useState<Analyst[]>([])
 
-  // Nuevos estados para campos adicionales
   const [ciTitular, setCiTitular] = useState("")
   const [patientOtherPhone, setPatientOtherPhone] = useState("")
   const [patientFixedPhone, setPatientFixedPhone] = useState("")
@@ -62,25 +71,63 @@ export function NewCaseForm() {
   const [collective, setCollective] = useState("")
   const [diagnosis, setDiagnosis] = useState("")
   const [provider, setProvider] = useState("")
-  const [state, setState] = useState("") // Estado para el estado de Venezuela
+  const [state, setState] = useState("")
   const [city, setCity] = useState("")
   const [address, setAddress] = useState("")
   const [holderCI, setHolderCI] = useState("")
   const [typeOfRequirement, setTypeOfRequirement] = useState("")
 
-  // Estados para la gestión de baremos y procedimientos
+  const [clients, setClients] = useState<Client[]>([])
   const [baremos, setBaremos] = useState<Baremo[]>([])
   const [selectedBaremoId, setSelectedBaremoId] = useState("")
-  const [selectedBaremoProcedures, setSelectedBaremoProcedures] = useState<Procedure[]>([]) // Procedimientos activos del baremo seleccionado
-  const [caseProcedures, setCaseProcedures] = useState<Service[]>([]) // Procedimientos añadidos a este caso
+  const [selectedBaremoProcedures, setSelectedBaremoProcedures] = useState<Procedure[]>([])
+  const [caseProcedures, setCaseProcedures] = useState<Service[]>([])
 
   const { toast } = useToast()
   const router = useRouter()
 
   useEffect(() => {
     fetchAnalysts()
-    fetchBaremos() // Fetch baremos on component mount
+    fetchBaremos()
+    fetchClients()
   }, [])
+
+  useEffect(() => {
+    // When selectedClient or baremos change, update selectedBaremoId and procedures
+    if (selectedClient && baremos.length > 0) {
+      const baremo = baremos.find((b) => b.id === selectedClient.baremoId)
+      if (baremo) {
+        setSelectedBaremoId(baremo.id)
+        setSelectedBaremoProcedures(baremo.procedures.filter(p => p.isActive)) // Only active procedures
+      } else {
+        setSelectedBaremoId("")
+        setSelectedBaremoProcedures([])
+      }
+      setCaseProcedures([]) // Reset case procedures when client or baremo changes
+    } else {
+      setSelectedBaremoId("")
+      setSelectedBaremoProcedures([])
+      setCaseProcedures([])
+    }
+  }, [selectedClient, baremos])
+
+  const fetchClients = async () => {
+    try {
+      const clientsResponse = await fetch("/api/clients")
+      if (!clientsResponse.ok) {
+        throw new Error("Failed to fetch clients.")
+      }
+      const clientsData: Client[] = await clientsResponse.json()
+      setClients(clientsData)
+    } catch (error) {
+      console.error("Error fetching clients:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los clientes.",
+        variant: "destructive",
+      })
+    }
+  }
 
   const fetchAnalysts = async () => {
     try {
@@ -89,7 +136,6 @@ export function NewCaseForm() {
         throw new Error("Failed to fetch analysts")
       }
       const data: Analyst[] = await response.json()
-      // Filtrar por usuarios con el rol "Analista Concertado"
       setAnalysts(data.filter((user) => user.role === "Analista Concertado"))
     } catch (error) {
       console.error("Error fetching analysts:", error)
@@ -119,20 +165,15 @@ export function NewCaseForm() {
     }
   }
 
-  const handleBaremoChange = (baremoId: string) => {
-    setSelectedBaremoId(baremoId)
-    const baremo = baremos.find((b) => b.id === baremoId)
-    if (baremo) {
-      setSelectedBaremoProcedures(baremo.procedures.filter((p) => p.isActive)) // Solo procedimientos activos
-      setCaseProcedures([]) // Resetear procedimientos del caso cuando el baremo cambia
-    } else {
-      setSelectedBaremoProcedures([])
-      setCaseProcedures([])
-    }
+  const handleClientChange = (value: string) => {
+    setClientId(value)
+    const client = clients.find((c) => c.id === value)
+    setSelectedClient(client || null)
+    // The useEffect hook will handle setting the baremo and procedures
   }
 
   const handleAddProcedureToCase = (procedure: Procedure) => {
-    // Verificar si el procedimiento ya fue añadido
+    // Check if the procedure (by name and type) is already added
     if (!caseProcedures.some((p) => p.name === procedure.name && p.type === procedure.type)) {
       setCaseProcedures((prev) => [
         ...prev,
@@ -140,7 +181,7 @@ export function NewCaseForm() {
           name: procedure.name,
           type: procedure.type,
           amount: procedure.cost,
-          attended: false, // Por defecto no atendido
+          attended: false,
         },
       ])
     } else {
@@ -160,20 +201,20 @@ export function NewCaseForm() {
     e.preventDefault()
 
     if (
-      !client ||
+      !clientId ||
       !date ||
       !patientName ||
       !ciPatient ||
       !patientPhone ||
       !assignedAnalystId ||
       !typeOfRequirement ||
-      !selectedBaremoId ||
-      !state // Ensure state is selected
+      !selectedBaremoId || // Ensure selectedBaremoId is present
+      !state
     ) {
       toast({
         title: "Error",
         description:
-          "Por favor, complete todos los campos requeridos: Cliente, Fecha, Nombre Paciente, CI Paciente, Teléfono Paciente, Analista Asignado, Tipo de Requerimiento, Baremo y Estado del Caso.",
+          "Por favor, complete todos los campos requeridos: Cliente, Fecha, Nombre Paciente, CI Paciente, Teléfono Paciente, Analista Asignado, Tipo de Requerimiento, Baremo y Estado.",
         variant: "destructive",
       })
       return
@@ -195,29 +236,30 @@ export function NewCaseForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          client,
+          clientId,
+          client: selectedClient?.name,
           date,
           patientName,
           ciPatient,
           patientPhone,
           assignedAnalystId,
-          status: "Pendiente", // Estado inicial
+          status: "Pendiente",
           ciTitular,
           patientOtherPhone,
           patientFixedPhone,
-          patientBirthDate: patientBirthDate || null, // Enviar null si está vacío
-          patientAge: patientAge ? Number(patientAge) : null, // Convertir a número o null
+          patientBirthDate: patientBirthDate || null,
+          patientAge: patientAge ? Number(patientAge) : null,
           patientGender,
           collective,
           diagnosis,
           provider,
-          state, // Incluir el estado seleccionado
+          state,
           city,
           address,
           holderCI,
-          services: caseProcedures, // Usar los procedimientos seleccionados para este caso
+          services: caseProcedures,
           typeOfRequirement,
-          baremoId: selectedBaremoId, // Incluir el ID del baremo seleccionado
+          baremoId: selectedBaremoId,
         }),
       })
 
@@ -232,7 +274,8 @@ export function NewCaseForm() {
       })
 
       // Reset form
-      setClient("")
+      setClientId("")
+      setSelectedClient(null)
       setDate("")
       setPatientName("")
       setCiPatient("")
@@ -256,7 +299,7 @@ export function NewCaseForm() {
       setSelectedBaremoProcedures([])
       setCaseProcedures([])
 
-      router.push("/dashboard") // Redirigir al dashboard después del registro exitoso
+      router.push("/dashboard")
     } catch (error: any) {
       console.error("Error registering case:", error)
       toast({
@@ -292,7 +335,7 @@ export function NewCaseForm() {
     "Trujillo",
     "Yaracuy",
     "Zulia",
-  ].sort() // Ordenar alfabéticamente
+  ].sort()
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -305,9 +348,20 @@ export function NewCaseForm() {
           <div className="space-y-2 col-span-full">
             <h3 className="text-lg font-semibold">Información Básica del Caso</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="client">Cliente</Label>
-                <Input id="client" value={client} onChange={(e) => setClient(e.target.value)} required />
+              <div className="grid gap-2">
+                <Label htmlFor="clientId">Cliente *</Label>
+                <Select value={clientId} onValueChange={handleClientChange} required>
+                  <SelectTrigger id="clientId">
+                    <SelectValue placeholder="Seleccione un cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name} ({client.rif})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Fecha</Label>
@@ -336,7 +390,7 @@ export function NewCaseForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {analysts.length === 0 ? (
-                      <SelectItem value="no-baremos-available" disabled>
+                      <SelectItem value="no-analysts-available" disabled>
                         No hay analistas disponibles
                       </SelectItem>
                     ) : (
@@ -349,27 +403,38 @@ export function NewCaseForm() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="baremo">Baremo Asignado</Label>
-                <Select value={selectedBaremoId} onValueChange={handleBaremoChange} required>
-                  <SelectTrigger id="baremo">
-                    <SelectValue placeholder="Seleccione un baremo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baremos.length === 0 ? (
-                      <SelectItem value="no-baremos-available" disabled>
-                        No hay baremos disponibles
-                      </SelectItem>
-                    ) : (
-                      baremos.map((baremo) => (
-                        <SelectItem key={baremo.id} value={baremo.id}>
-                          {baremo.name} ({baremo.clinicName})
+              {selectedClient && (
+                <div className="space-y-2">
+                  <Label htmlFor="baremo">Baremo Asignado</Label>
+                  <Select value={selectedBaremoId} onValueChange={setSelectedBaremoId} required>
+                    <SelectTrigger id="baremo">
+                      <SelectValue placeholder="Seleccione un baremo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {baremos.length === 0 ? (
+                        <SelectItem value="no-baremos-available" disabled>
+                          No hay baremos disponibles
                         </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+                      ) : (
+                        // Only show the baremo assigned to the client
+                        selectedClient.baremoId ? (
+                          baremos
+                            .filter((baremo) => baremo.id === selectedClient.baremoId)
+                            .map((baremo) => (
+                              <SelectItem key={baremo.id} value={baremo.id}>
+                                {baremo.name} ({baremo.clinicName})
+                              </SelectItem>
+                            ))
+                        ) : (
+                          <SelectItem value="" disabled>
+                            El cliente no tiene un baremo asignado
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -434,7 +499,7 @@ export function NewCaseForm() {
                 </div>
               </>
             ) : (
-              <p className="text-muted-foreground">Seleccione un baremo para ver y añadir procedimientos.</p>
+              <p className="text-muted-foreground">Seleccione un cliente para cargar su baremo y ver los procedimientos disponibles.</p>
             )}
           </div>
 
@@ -538,7 +603,7 @@ export function NewCaseForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="state">Estado</Label>
-                <Select value={state} onValueChange={setState}>
+                <Select value={state} onValueChange={setState} required>
                   <SelectTrigger id="state">
                     <SelectValue placeholder="Seleccione un estado" />
                   </SelectTrigger>

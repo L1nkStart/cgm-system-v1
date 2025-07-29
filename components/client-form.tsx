@@ -4,19 +4,12 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-
-interface Baremo {
-    id: string
-    name: string
-    clinicName: string
-}
 
 interface Client {
     id: string
@@ -33,92 +26,57 @@ interface Client {
     notes?: string
 }
 
-interface ClientFormProps {
-    isOpen: boolean
-    onClose: () => void
-    onSave: () => void
-    initialData?: Client | null
+interface Baremo {
+    id: string
+    name: string
+    clinicName: string
 }
 
-export function ClientForm({ isOpen, onClose, onSave, initialData = null }: ClientFormProps) {
-    const [formData, setFormData] = useState({
-        name: "",
-        rif: "",
-        address: "",
-        phone: "",
-        email: "",
-        contactPerson: "",
-        contactPhone: "",
-        contactEmail: "",
-        baremoId: "",
-        isActive: true,
-        notes: "",
-    })
+interface ClientFormProps {
+    client?: Client
+    onSave: (client: Partial<Client>) => void
+    onCancel: () => void
+}
+
+export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
+    const [name, setName] = useState(client?.name || "")
+    const [rif, setRif] = useState(client?.rif || "")
+    const [address, setAddress] = useState(client?.address || "")
+    const [phone, setPhone] = useState(client?.phone || "")
+    const [email, setEmail] = useState(client?.email || "")
+    const [contactPerson, setContactPerson] = useState(client?.contactPerson || "")
+    const [contactPhone, setContactPhone] = useState(client?.contactPhone || "")
+    const [contactEmail, setContactEmail] = useState(client?.contactEmail || "")
+    const [baremoId, setBaremoId] = useState(client?.baremoId || "none")
+    const [isActive, setIsActive] = useState(client?.isActive ?? true)
+    const [notes, setNotes] = useState(client?.notes || "")
     const [baremos, setBaremos] = useState<Baremo[]>([])
-    const [loading, setLoading] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
+
     const { toast } = useToast()
 
     useEffect(() => {
-        if (initialData) {
-            setFormData({
-                name: initialData.name || "",
-                rif: initialData.rif || "",
-                address: initialData.address || "",
-                phone: initialData.phone || "",
-                email: initialData.email || "",
-                contactPerson: initialData.contactPerson || "",
-                contactPhone: initialData.contactPhone || "",
-                contactEmail: initialData.contactEmail || "",
-                baremoId: initialData.baremoId || "",
-                isActive: initialData.isActive ?? true,
-                notes: initialData.notes || "",
-            })
-        } else {
-            setFormData({
-                name: "",
-                rif: "",
-                address: "",
-                phone: "",
-                email: "",
-                contactPerson: "",
-                contactPhone: "",
-                contactEmail: "",
-                baremoId: "",
-                isActive: true,
-                notes: "",
-            })
-        }
-    }, [initialData])
-
-    useEffect(() => {
-        if (isOpen) {
-            fetchBaremos()
-        }
-    }, [isOpen])
-
-    const fetchBaremos = async () => {
-        try {
-            const response = await fetch("/api/baremos")
-            if (response.ok) {
+        const fetchBaremos = async () => {
+            try {
+                const response = await fetch("/api/baremos")
+                if (!response.ok) throw new Error("Failed to fetch baremos")
                 const data = await response.json()
                 setBaremos(data)
+            } catch (error) {
+                toast({
+                    title: "Error",
+                    description: "Error al cargar los baremos",
+                    variant: "destructive",
+                })
             }
-        } catch (error) {
-            console.error("Error fetching baremos:", error)
         }
-    }
-
-    const handleInputChange = (field: string, value: string | boolean) => {
-        setFormData((prev) => ({
-            ...prev,
-            [field]: value,
-        }))
-    }
+        fetchBaremos()
+    }, [toast])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        if (!formData.name.trim() || !formData.rif.trim()) {
+        if (!name.trim() || !rif.trim()) {
             toast({
                 title: "Error",
                 description: "Nombre y RIF son campos requeridos",
@@ -127,192 +85,154 @@ export function ClientForm({ isOpen, onClose, onSave, initialData = null }: Clie
             return
         }
 
-        setLoading(true)
+        setIsLoading(true)
+
+        const clientData = {
+            name: name.trim(),
+            rif: rif.trim(),
+            address: address.trim() || null,
+            phone: phone.trim() || null,
+            email: email.trim() || null,
+            contactPerson: contactPerson.trim() || null,
+            contactPhone: contactPhone.trim() || null,
+            contactEmail: contactEmail.trim() || null,
+            baremoId: baremoId === "none" ? null : baremoId,
+            isActive,
+            notes: notes.trim() || null,
+        }
+
         try {
-            const url = initialData ? `/api/clients?id=${initialData.id}` : "/api/clients"
-            const method = initialData ? "PUT" : "POST"
-
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(formData),
-            })
-
-            const result = await response.json()
-
-            if (response.ok) {
-                toast({
-                    title: "Éxito",
-                    description: result.message,
-                    variant: "default",
-                })
-                onSave()
-                onClose()
-            } else {
-                toast({
-                    title: "Error",
-                    description: result.error || "Error al procesar la solicitud",
-                    variant: "destructive",
-                })
-            }
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: "Error de conexión",
-                variant: "destructive",
-            })
+            await onSave(clientData)
         } finally {
-            setLoading(false)
+            setIsLoading(false)
         }
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{initialData ? "Editar Cliente" : "Crear Nuevo Cliente"}</DialogTitle>
-                </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="name">Nombre de la Empresa *</Label>
+                    <Input
+                        id="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Ej: Clínica San Rafael"
+                        required
+                    />
+                </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="name">Nombre de la Empresa *</Label>
-                            <Input
-                                id="name"
-                                value={formData.name}
-                                onChange={(e) => handleInputChange("name", e.target.value)}
-                                placeholder="Nombre de la empresa"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="rif">RIF *</Label>
-                            <Input
-                                id="rif"
-                                value={formData.rif}
-                                onChange={(e) => handleInputChange("rif", e.target.value)}
-                                placeholder="J-12345678-9"
-                                required
-                            />
-                        </div>
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="rif">RIF *</Label>
+                    <Input
+                        id="rif"
+                        value={rif}
+                        onChange={(e) => setRif(e.target.value)}
+                        placeholder="Ej: J-12345678-9"
+                        required
+                    />
+                </div>
 
-                    <div>
-                        <Label htmlFor="address">Dirección</Label>
-                        <Textarea
-                            id="address"
-                            value={formData.address}
-                            onChange={(e) => handleInputChange("address", e.target.value)}
-                            placeholder="Dirección de la empresa"
-                            rows={2}
-                        />
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="phone">Teléfono Principal</Label>
+                    <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ej: 0212-1234567" />
+                </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="phone">Teléfono</Label>
-                            <Input
-                                id="phone"
-                                value={formData.phone}
-                                onChange={(e) => handleInputChange("phone", e.target.value)}
-                                placeholder="0212-1234567"
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => handleInputChange("email", e.target.value)}
-                                placeholder="empresa@email.com"
-                            />
-                        </div>
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="email">Email Corporativo</Label>
+                    <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Ej: contacto@clinica.com"
+                    />
+                </div>
 
-                    <div className="border-t pt-4">
-                        <h3 className="text-lg font-medium mb-3">Información de Contacto</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="contactPerson">Persona de Contacto</Label>
-                                <Input
-                                    id="contactPerson"
-                                    value={formData.contactPerson}
-                                    onChange={(e) => handleInputChange("contactPerson", e.target.value)}
-                                    placeholder="Nombre del contacto"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="contactPhone">Teléfono de Contacto</Label>
-                                <Input
-                                    id="contactPhone"
-                                    value={formData.contactPhone}
-                                    onChange={(e) => handleInputChange("contactPhone", e.target.value)}
-                                    placeholder="0414-1234567"
-                                />
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                            <Label htmlFor="contactEmail">Email de Contacto</Label>
-                            <Input
-                                id="contactEmail"
-                                type="email"
-                                value={formData.contactEmail}
-                                onChange={(e) => handleInputChange("contactEmail", e.target.value)}
-                                placeholder="contacto@email.com"
-                            />
-                        </div>
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="contactPerson">Persona de Contacto</Label>
+                    <Input
+                        id="contactPerson"
+                        value={contactPerson}
+                        onChange={(e) => setContactPerson(e.target.value)}
+                        placeholder="Ej: Dr. Juan Pérez"
+                    />
+                </div>
 
-                    <div>
-                        <Label htmlFor="baremo">Baremo Asignado</Label>
-                        <Select value={formData.baremoId} onValueChange={(value) => handleInputChange("baremoId", value)}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar baremo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Sin baremo asignado</SelectItem>
-                                {baremos.map((baremo) => (
-                                    <SelectItem key={baremo.id} value={baremo.id}>
-                                        {baremo.name} - {baremo.clinicName}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="contactPhone">Teléfono de Contacto</Label>
+                    <Input
+                        id="contactPhone"
+                        value={contactPhone}
+                        onChange={(e) => setContactPhone(e.target.value)}
+                        placeholder="Ej: 0414-1234567"
+                    />
+                </div>
 
-                    <div className="flex items-center space-x-2">
-                        <Switch
-                            id="isActive"
-                            checked={formData.isActive}
-                            onCheckedChange={(checked) => handleInputChange("isActive", checked)}
-                        />
-                        <Label htmlFor="isActive">Cliente Activo</Label>
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="contactEmail">Email de Contacto</Label>
+                    <Input
+                        id="contactEmail"
+                        type="email"
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                        placeholder="Ej: juan.perez@clinica.com"
+                    />
+                </div>
 
-                    <div>
-                        <Label htmlFor="notes">Notas</Label>
-                        <Textarea
-                            id="notes"
-                            value={formData.notes}
-                            onChange={(e) => handleInputChange("notes", e.target.value)}
-                            placeholder="Notas adicionales sobre el cliente"
-                            rows={3}
-                        />
-                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="baremoId">Baremo Asignado</Label>
+                    <Select value={baremoId} onValueChange={setBaremoId}>
+                        <SelectTrigger id="baremoId">
+                            <SelectValue placeholder="Seleccione un baremo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">Sin baremo asignado</SelectItem>
+                            {baremos.map((baremo) => (
+                                <SelectItem key={baremo.id} value={baremo.id}>
+                                    {baremo.name} - {baremo.clinicName}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
 
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={onClose}>
-                            Cancelar
-                        </Button>
-                        <Button type="submit" disabled={loading} className="bg-orange-600 hover:bg-orange-700">
-                            {loading ? "Guardando..." : initialData ? "Actualizar" : "Crear Cliente"}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+            <div className="space-y-2">
+                <Label htmlFor="address">Dirección</Label>
+                <Textarea
+                    id="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Dirección completa de la empresa"
+                    rows={2}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="notes">Notas Adicionales</Label>
+                <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Información adicional sobre el cliente"
+                    rows={3}
+                />
+            </div>
+
+            <div className="flex items-center space-x-2">
+                <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
+                <Label htmlFor="isActive">Cliente Activo</Label>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+                <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Guardando..." : client ? "Actualizar Cliente" : "Crear Cliente"}
+                </Button>
+                <Button type="button" variant="outline" onClick={onCancel}>
+                    Cancelar
+                </Button>
+            </div>
+        </form>
     )
 }

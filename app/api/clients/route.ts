@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
         b.clinicName as baremoClinicName
       FROM clients c
       LEFT JOIN baremos b ON c.baremoId = b.id
+      WHERE c.isActive = TRUE
       ORDER BY c.name ASC
     `)
 

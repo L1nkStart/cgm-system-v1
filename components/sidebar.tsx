@@ -20,6 +20,7 @@ import {
   Banknote,
   Stethoscope,
   Building2,
+  UserCheck,
 } from "lucide-react"
 import {
   Sidebar,
@@ -100,7 +101,7 @@ export function AppSidebar({
       ],
     },
     {
-      title: "Clientes",
+      title: "Maestros",
 
       items: [
         {
@@ -109,7 +110,14 @@ export function AppSidebar({
           icon: Building2,
           roles: ["Superusuario", "Jefe Financiero", "Coordinador Regional"],
         },
+        {
+          title: "Pacientes",
+          href: "/patients",
+          icon: UserCheck,
+          roles: ["Superusuario", "Administrador", "Coordinador Regional", "Analista Concertado", "Médico Auditor"],
+        },
       ],
+
     },
     {
       title: "Médicos",

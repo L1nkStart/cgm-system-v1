@@ -19,6 +19,7 @@ interface Document {
 interface Case {
   id: string
   client: string
+  clientId: string
   date: string
   sinisterNo: string
   idNumber: string
@@ -184,6 +185,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const {
+      clientId,
       client,
       date,
       patientName,
@@ -213,7 +215,7 @@ export async function POST(req: Request) {
     } = await req.json()
 
     if (
-      !client ||
+      !clientId ||
       !date ||
       !patientName ||
       !ciPatient ||
@@ -257,6 +259,7 @@ export async function POST(req: Request) {
 
     const newCase: Case = {
       id: uuidv4(),
+      clientId,
       client,
       date,
       sinisterNo: Math.floor(Math.random() * 100000).toString(),
@@ -277,7 +280,7 @@ export async function POST(req: Request) {
       patientOtherPhone: patientOtherPhone || null, // Usar null si está vacío
       patientFixedPhone: patientFixedPhone || null, // Usar null si está vacío
       patientBirthDate: patientBirthDate || null,
-      patientAge: patientAge ? Number(patientAge) : null,
+      patientAge: patientAge ? Number(patientAge) : undefined,
       patientGender: patientGender || null,
       collective: collective || null,
       diagnosis: diagnosis || null,
@@ -294,14 +297,15 @@ export async function POST(req: Request) {
 
     await pool.execute(
       `INSERT INTO cases (
-     id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
+     id, clientId, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
      assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
      cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
      patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
      diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId, documents
-   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+   ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
+        newCase.clientId,
         newCase.client,
         newCase.date,
         newCase.sinisterNo,
