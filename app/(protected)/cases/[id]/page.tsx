@@ -323,7 +323,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               Editar Caso
             </Button>
           )}
-          {canAuditCase && (
+          {canAuditCase && caseData.status === "Pendiente por Auditar" && (
             <Button onClick={() => setIsAuditFormOpen(true)} className="bg-purple-500 hover:bg-purple-600 text-white">
               Auditar Caso
             </Button>
