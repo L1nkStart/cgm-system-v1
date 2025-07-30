@@ -1,5 +1,5 @@
 import { CasesTable } from "@/components/cases-table"
-import { getFullUserSession } from "@/lib/auth" // Importa getSession
+import { getFullUserSession } from "@/lib/auth"
 
 export default async function AuditorDashboardPage() {
   const session = await getFullUserSession()

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db" // Importa el pool de conexiones
-import { getFullUserSession } from "@/lib/auth" // Import getSession
+import { getFullUserSession } from "@/lib/auth"
 
 // Define las interfaces para los datos (pueden estar en un archivo de tipos separado)
 interface Service {

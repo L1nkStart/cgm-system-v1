@@ -1,5 +1,5 @@
 import { NewCaseForm } from "@/components/new-case-form"
-import { getFullUserSession } from "@/lib/auth" // Importa getSession
+import { getFullUserSession } from "@/lib/auth"
 
 export default async function NewCasePage() {
   const session = await getFullUserSession()

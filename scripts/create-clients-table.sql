@@ -21,3 +21,4 @@ CREATE TABLE IF NOT EXISTS clients (
 -- Update cases table to reference patients
 ALTER TABLE cases ADD COLUMN clientId VARCHAR(255);
 ALTER TABLE cases ADD FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE SET NULL;
+

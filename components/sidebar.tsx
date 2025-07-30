@@ -21,6 +21,7 @@ import {
   Stethoscope,
   Building2,
   UserCheck,
+  Shield,
 } from "lucide-react"
 import {
   Sidebar,
@@ -115,6 +116,12 @@ export function AppSidebar({
           href: "/patients",
           icon: UserCheck,
           roles: ["Superusuario", "Administrador", "Coordinador Regional", "Analista Concertado", "Médico Auditor"],
+        },
+        {
+          title: "Titulares de Seguro",
+          href: "/insurance-holders",
+          icon: Shield,
+          roles: ["Superusuario", "Coordinador Regional"],
         },
       ],
 
