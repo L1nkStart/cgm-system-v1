@@ -183,7 +183,7 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
 
   // Case fields
   const [assignedAnalystId, setAssignedAnalystId] = useState("")
-  const [status, setStatus] = useState("Pendiente por Agendar")
+  const [status, setStatus] = useState("Pendiente")
   const [collective, setCollective] = useState("")
   const [diagnosis, setDiagnosis] = useState("")
   const [provider, setProvider] = useState("")
@@ -1349,7 +1349,7 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
                   <SelectValue placeholder="Seleccione un estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Pendiente por Agendar">Pendiente por Agendar</SelectItem>
+                  <SelectItem value="Pendiente">Pendiente</SelectItem>
                   <SelectItem value="Agendado">Agendado</SelectItem>
                   <SelectItem value="Atendido">Atendido</SelectItem>
                   <SelectItem value="Pendiente por Auditar">Pendiente por Auditar</SelectItem>

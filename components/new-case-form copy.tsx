@@ -117,7 +117,7 @@ export function NewCaseForm() {
   const [medicalHistory, setMedicalHistory] = useState("")
 
   const [assignedAnalystId, setAssignedAnalystId] = useState("")
-  const [status, setStatus] = useState("Pendiente por Agendar")
+  const [status, setStatus] = useState("Pendiente")
   const [collective, setCollective] = useState("")
   const [diagnosis, setDiagnosis] = useState("")
   const [provider, setProvider] = useState("")

@@ -152,6 +152,6 @@ export async function POST(req: Request) {
         )
     } catch (error) {
         console.error("Error uploading files:", error)
-        return NextResponse.json({ error: "Error interno del servidor al subir archivos." }, { status: 500 })
+        return NextResponse.json({ error: `${error} Error interno del servidor al subir archivos.` }, { status: 500 })
     }
 }
