@@ -195,9 +195,9 @@ export function DocumentUploadForm({
                     </div>
 
                     {(selectedFiles.length > 0 || existingDocuments.length > 0) && (
-                        <div className="space-y-2 ">
+                        <div className="space-y-2 min-w-96">
                             <Label>Archivos Seleccionados / Documentos Existentes</Label>
-                            <div className="border rounded-md p-2 max-h-60 overflow-y-auto flex">
+                            <div className="border rounded-md p-2 max-h-60 overflow-y-auto ">
                                 {existingDocuments.map((doc, index) => (
                                     <div
                                         key={`existing-${index}`}
