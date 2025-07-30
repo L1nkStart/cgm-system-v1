@@ -22,6 +22,8 @@ import {
   Building2,
   UserCheck,
   Shield,
+  ShieldBan,
+  Building,
 } from "lucide-react"
 import {
   Sidebar,
@@ -122,6 +124,12 @@ export function AppSidebar({
           href: "/insurance-holders",
           icon: Shield,
           roles: ["Superusuario", "Coordinador Regional"],
+        },
+        {
+          title: "Compañías de Seguros",
+          href: "/insurance-companies",
+          icon: Building,
+          roles: ["Superusuario", "Jefe Financiero"],
         },
       ],
 
