@@ -1,116 +1,139 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import pool from "@/lib/db"
 import { getFullUserSession } from "@/lib/auth"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
     try {
         const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // Solo Superusuario y Jefe Financiero pueden acceder
-        if (!["Superusuario", "Jefe Financiero"].includes(session.role)) {
+        // Check if user has permission (Superusuario or Jefe Financiero)
+        if (session.role !== "Superusuario" && session.role !== "Jefe Financiero") {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 })
         }
 
-        const [rows]: any = await pool.execute(
-            `SELECT 
-        id,
-        name,
-        rif,
-        phone,
-        email,
-        address,
-        contactPerson,
-        contactPhone,
-        contactEmail,
-        isActive,
-        createdAt,
-        updatedAt
-       FROM insurance_companies 
-       WHERE id = ?`,
-            [params.id],
-        )
+        const [rows]: any = await pool.execute("SELECT * FROM insurance_companies WHERE id = ?", [params.id])
 
         if (rows.length === 0) {
             return NextResponse.json({ error: "Insurance company not found" }, { status: 404 })
         }
 
-        return NextResponse.json(rows[0])
+        const company = {
+            ...rows[0],
+            isActive: Boolean(rows[0].isActive),
+        }
+
+        return NextResponse.json(company)
     } catch (error) {
         console.error("Error fetching insurance company:", error)
-        return NextResponse.json({ error: "Error fetching insurance company" }, { status: 500 })
+        return NextResponse.json({ error: "Failed to fetch insurance company" }, { status: 500 })
     }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
     try {
         const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // Solo Superusuario y Jefe Financiero pueden modificar
-        if (!["Superusuario", "Jefe Financiero"].includes(session.role)) {
+        // Check if user has permission (Superusuario or Jefe Financiero)
+        if (session.role !== "Superusuario" && session.role !== "Jefe Financiero") {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 })
         }
 
-        const body = await request.json()
-        const { name, rif, phone, email, address, contactPerson, contactPhone, contactEmail, isActive } = body
+        const updates = await req.json()
 
-        if (!name) {
-            return NextResponse.json({ error: "Name is required" }, { status: 400 })
+        // Check if trying to update RIF to an existing one
+        if (updates.rif) {
+            const [existingCompany]: any = await pool.execute(
+                "SELECT id FROM insurance_companies WHERE rif = ? AND id != ?",
+                [updates.rif, params.id],
+            )
+
+            if (existingCompany.length > 0) {
+                return NextResponse.json({ error: "Ya existe otra compañía con este RIF" }, { status: 400 })
+            }
         }
 
+        const updateFields: string[] = []
+        const values: any[] = []
+
+        for (const key in updates) {
+            if (updates.hasOwnProperty(key) && key !== "id") {
+                updateFields.push(`${key} = ?`)
+                values.push(updates[key])
+            }
+        }
+
+        if (updateFields.length === 0) {
+            return NextResponse.json({ error: "No fields to update" }, { status: 400 })
+        }
+
+        values.push(params.id)
         const [result]: any = await pool.execute(
-            `UPDATE insurance_companies 
-       SET name = ?, rif = ?, phone = ?, email = ?, address = ?, 
-           contactPerson = ?, contactPhone = ?, contactEmail = ?, isActive = ?
-       WHERE id = ?`,
-            [name, rif, phone, email, address, contactPerson, contactPhone, contactEmail, isActive, params.id],
+            `UPDATE insurance_companies SET ${updateFields.join(", ")} WHERE id = ?`,
+            values,
         )
 
         if (result.affectedRows === 0) {
             return NextResponse.json({ error: "Insurance company not found" }, { status: 404 })
         }
 
-        return NextResponse.json({ message: "Insurance company updated successfully" })
-    } catch (error: any) {
-        console.error("Error updating insurance company:", error)
-
-        if (error.code === "ER_DUP_ENTRY") {
-            return NextResponse.json({ error: "RIF already exists" }, { status: 409 })
+        // Fetch the updated company
+        const [updatedRows]: any = await pool.execute("SELECT * FROM insurance_companies WHERE id = ?", [params.id])
+        const updatedCompany = {
+            ...updatedRows[0],
+            isActive: Boolean(updatedRows[0].isActive),
         }
 
-        return NextResponse.json({ error: "Error updating insurance company" }, { status: 500 })
+        return NextResponse.json(updatedCompany)
+    } catch (error) {
+        console.error("Error updating insurance company:", error)
+        return NextResponse.json({ error: "Failed to update insurance company" }, { status: 500 })
     }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
     try {
         const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // Solo Superusuario puede eliminar
+        // Only Superusuario can delete
         if (session.role !== "Superusuario") {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 })
         }
 
-        // En lugar de eliminar, inactivamos la compañía
-        const [result]: any = await pool.execute("UPDATE insurance_companies SET isActive = FALSE WHERE id = ?", [
-            params.id,
-        ])
+        // Check if company has associated clients
+        const [clientsCount]: any = await pool.execute(
+            "SELECT COUNT(*) AS count FROM clients WHERE insuranceCompanyId = ?",
+            [params.id],
+        )
+
+        if (clientsCount[0].count > 0) {
+            // Instead of deleting, deactivate the company
+            await pool.execute("UPDATE insurance_companies SET isActive = FALSE WHERE id = ?", [params.id])
+            return NextResponse.json(
+                {
+                    message: "Compañía desactivada debido a que tiene clientes asociados",
+                },
+                { status: 200 },
+            )
+        }
+
+        const [result]: any = await pool.execute("DELETE FROM insurance_companies WHERE id = ?", [params.id])
 
         if (result.affectedRows === 0) {
             return NextResponse.json({ error: "Insurance company not found" }, { status: 404 })
         }
 
-        return NextResponse.json({ message: "Insurance company deactivated successfully" })
+        return NextResponse.json({ message: "Insurance company deleted successfully" }, { status: 200 })
     } catch (error) {
-        console.error("Error deactivating insurance company:", error)
-        return NextResponse.json({ error: "Error deactivating insurance company" }, { status: 500 })
+        console.error("Error deleting insurance company:", error)
+        return NextResponse.json({ error: "Failed to delete insurance company" }, { status: 500 })
     }
 }

@@ -13,6 +13,15 @@ CREATE TABLE IF NOT EXISTS insurance_companies (
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+use `cgm-storage`;
+ALTER TABLE  insurance_companies 
+ADD COLUMN website VARCHAR(255)
+
+use `cgm-storage`;
+ALTER TABLE  insurance_companies 
+ADD COLUMN notes TEXT
+
+
 CREATE INDEX idx_insurance_companies_name ON insurance_companies(name);
 CREATE INDEX idx_insurance_companies_rif ON insurance_companies(rif);
 CREATE INDEX idx_insurance_companies_active ON insurance_companies(isActive);

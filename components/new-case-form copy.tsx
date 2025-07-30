@@ -12,6 +12,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { UserIcon, UserCheck } from "lucide-react"
+import { ProcedureSelector } from "./procedure-selector"
+import { useRouter } from "next/navigation"
+
 
 interface Service {
   name: string
@@ -86,10 +89,11 @@ interface Patient {
   medicalHistory?: string
 }
 
-export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void }) {
+export function NewCaseForm() {
   const [clientId, setClientId] = useState("")
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  const router = useRouter()
 
   // Patient fields
   const [ciPatient, setCiPatient] = useState("")
@@ -122,12 +126,14 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
   const [address, setAddress] = useState("")
   const [holderCI, setHolderCI] = useState("")
   const [typeOfRequirement, setTypeOfRequirement] = useState("CONSULTA")
+  const [selectedServices, setSelectedServices] = useState<Service[]>([])
 
   const [analysts, setAnalysts] = useState<Analyst[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoadingPatient, setIsLoadingPatient] = useState(false)
   const { toast } = useToast()
+
 
   const states = [
     "Amazonas",
@@ -194,6 +200,8 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
     setClientId(value)
     const client = clients.find((c) => c.id === value)
     setSelectedClient(client || null)
+    // Reset services when client changes
+    setSelectedServices([])
   }
 
   const handleCIChange = async (value: string) => {
@@ -355,40 +363,103 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
     if (isNewPatient) {
       patientId = await createPatient()
       if (!patientId) {
+        toast({
+          title: "Error",
+          description: "Error al crear paciente.",
+          variant: "destructive",
+        })
         return // Error creating patient, stop here
       }
     }
 
-    const newCase: NewCaseData = {
-      client: selectedClient.name,
-      date,
-      patientName,
-      ciPatient,
-      patientPhone,
-      assignedAnalystId,
-      status,
-      creatorName: currentUser?.name || "Coordinador Regional",
-      creatorEmail: currentUser?.email || "coord@cgm.com",
-      creatorPhone: currentUser?.phone || "0412-9999999",
-      patientOtherPhone: patientOtherPhone || null,
-      patientFixedPhone: patientFixedPhone || null,
-      patientBirthDate: patientBirthDate || null,
-      patientAge: patientAge ? Number(patientAge) : null,
-      patientGender: patientGender || null,
-      collective: collective || null,
-      diagnosis: diagnosis || null,
-      provider: provider || null,
-      state: state || null,
-      city: city || null,
-      address: address || null,
-      holderCI: holderCI || null,
-      services: [],
-      typeOfRequirement,
-      baremoId: selectedClient.baremoId,
-      patientId: patientId || undefined,
+    if (selectedServices.length === 0) {
+      toast({
+        title: "Error",
+        description: "Debe añadir al menos un procedimiento al caso.",
+        variant: "destructive",
+      })
+      return
     }
 
-    onSave(newCase)
+    try {
+      const response = await fetch("/api/cases", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clientId,
+          client: selectedClient?.name,
+          date,
+          patientName,
+          ciPatient,
+          patientPhone,
+          assignedAnalystId,
+          status: "Pendiente",
+          ciTitular: holderCI,
+          patientOtherPhone,
+          patientFixedPhone,
+          patientBirthDate: patientBirthDate || null,
+          patientAge: patientAge ? Number(patientAge) : null,
+          patientGender,
+          collective,
+          diagnosis,
+          provider,
+          state,
+          city,
+          address,
+          holderCI,
+          services: selectedServices,
+          typeOfRequirement,
+          baremoId: selectedClient.baremoId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to register case")
+      }
+
+      toast({
+        title: "Éxito",
+        description: "Caso registrado y asignado correctamente.",
+      })
+
+      // Reset form
+      setClientId("")
+      setSelectedClient(null)
+      setDate("")
+      setPatientName("")
+      setCiPatient("")
+      setPatientPhone("")
+      setAssignedAnalystId("")
+      // setCiTitular("")
+      setPatientOtherPhone("")
+      setPatientFixedPhone("")
+      setPatientBirthDate("")
+      setPatientAge("")
+      setPatientGender("")
+      setCollective("")
+      setDiagnosis("")
+      setProvider("")
+      setState("")
+      setCity("")
+      setAddress("")
+      setHolderCI("")
+      setTypeOfRequirement("")
+      // setSelectedBaremoId("")
+      // setSelectedBaremoProcedures([])
+      setSelectedServices([])
+
+      router.push("/dashboard")
+    } catch (error: any) {
+      console.error("Error registering case:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo registrar el caso.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -636,6 +707,15 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
           </div>
         </CardContent>
       </Card>
+
+      {/* Procedure Selection */}
+      {selectedClient?.baremoId && (
+        <ProcedureSelector
+          baremoId={selectedClient.baremoId}
+          onServicesChange={setSelectedServices}
+          initialServices={selectedServices}
+        />
+      )}
 
       {/* Case Information */}
       <Card>

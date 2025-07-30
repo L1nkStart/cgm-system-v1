@@ -1,95 +1,141 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db"
 import { getFullUserSession } from "@/lib/auth"
 
-export async function GET(request: NextRequest) {
+interface InsuranceCompany {
+    id: string
+    name: string
+    rif?: string
+    address?: string
+    phone?: string
+    email?: string
+    contactPerson?: string
+    contactPhone?: string
+    contactEmail?: string
+    website?: string
+    notes?: string
+    isActive: boolean
+}
+
+export async function GET(req: Request) {
     try {
         const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // Solo Superusuario y Jefe Financiero pueden acceder
-        if (!["Superusuario", "Jefe Financiero"].includes(session.role)) {
+        // Check if user has permission (Superusuario or Jefe Financiero)
+        if (session.role !== "Superusuario" && session.role !== "Jefe Financiero") {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 })
         }
 
-        const { searchParams } = new URL(request.url)
+        const { searchParams } = new URL(req.url)
+        const search = searchParams.get("search")
         const includeInactive = searchParams.get("includeInactive") === "true"
+        const activeOnly = searchParams.get("activeOnly") === "true"
 
-        let query = `
-      SELECT 
-        id,
-        name,
-        rif,
-        phone,
-        email,
-        address,
-        contactPerson,
-        contactPhone,
-        contactEmail,
-        isActive,
-        createdAt,
-        updatedAt
-      FROM insurance_companies
-    `
+        let query = "SELECT * FROM insurance_companies"
+        const params: any[] = []
 
-        if (!includeInactive) {
-            query += " WHERE isActive = TRUE"
+        const conditions: string[] = []
+
+        if (search) {
+            conditions.push("(name LIKE ? OR rif LIKE ? OR email LIKE ?)")
+            const searchTerm = `%${search}%`
+            params.push(searchTerm, searchTerm, searchTerm)
+        }
+
+        if (activeOnly || !includeInactive) {
+            conditions.push("isActive = TRUE")
+        }
+
+        if (conditions.length > 0) {
+            query += " WHERE " + conditions.join(" AND ")
         }
 
         query += " ORDER BY name ASC"
 
-        const [rows] = await pool.execute(query)
-        return NextResponse.json(rows)
+        const [rows]: any = await pool.execute(query, params)
+
+        const companies = rows.map((row: any) => ({
+            ...row,
+            isActive: Boolean(row.isActive),
+        }))
+
+        return NextResponse.json(companies)
     } catch (error) {
         console.error("Error fetching insurance companies:", error)
-        return NextResponse.json({ error: "Error fetching insurance companies" }, { status: 500 })
+        return NextResponse.json({ error: "Failed to fetch insurance companies" }, { status: 500 })
     }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
     try {
         const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        // Solo Superusuario y Jefe Financiero pueden crear
-        if (!["Superusuario", "Jefe Financiero"].includes(session.role)) {
+        // Check if user has permission (Superusuario or Jefe Financiero)
+        if (session.role !== "Superusuario" && session.role !== "Jefe Financiero") {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 })
         }
 
-        const body = await request.json()
-        const { name, rif, phone, email, address, contactPerson, contactPhone, contactEmail } = body
+        const { name, rif, address, phone, email, contactPerson, contactPhone, contactEmail, website, notes } =
+            await req.json()
 
         if (!name) {
             return NextResponse.json({ error: "Name is required" }, { status: 400 })
         }
 
-        const id = `IC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-
-        const [result] = await pool.execute(
-            `INSERT INTO insurance_companies 
-       (id, name, rif, phone, email, address, contactPerson, contactPhone, contactEmail, isActive) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-            [id, name, rif, phone, email, address, contactPerson, contactPhone, contactEmail],
-        )
-
-        return NextResponse.json(
-            {
-                message: "Insurance company created successfully",
-                id,
-            },
-            { status: 201 },
-        )
-    } catch (error: any) {
-        console.error("Error creating insurance company:", error)
-
-        if (error.code === "ER_DUP_ENTRY") {
-            return NextResponse.json({ error: "RIF already exists" }, { status: 409 })
+        // Check if RIF already exists (if provided)
+        if (rif) {
+            const [existingCompany]: any = await pool.execute("SELECT id FROM insurance_companies WHERE rif = ?", [rif])
+            if (existingCompany.length > 0) {
+                return NextResponse.json({ error: "Ya existe una compañía con este RIF" }, { status: 400 })
+            }
         }
 
-        return NextResponse.json({ error: "Error creating insurance company" }, { status: 500 })
+        const newCompany: InsuranceCompany = {
+            id: uuidv4(),
+            name,
+            rif: rif || null,
+            address: address || null,
+            phone: phone || null,
+            email: email || null,
+            contactPerson: contactPerson || null,
+            contactPhone: contactPhone || null,
+            contactEmail: contactEmail || null,
+            website: website || null,
+            notes: notes || null,
+            isActive: true,
+        }
+
+        await pool.execute(
+            `INSERT INTO insurance_companies (
+        id, name, rif, address, phone, email, contactPerson, 
+        contactPhone, contactEmail, website, notes, isActive
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                newCompany.id,
+                newCompany.name,
+                newCompany.rif,
+                newCompany.address,
+                newCompany.phone,
+                newCompany.email,
+                newCompany.contactPerson,
+                newCompany.contactPhone,
+                newCompany.contactEmail,
+                newCompany.website,
+                newCompany.notes,
+                newCompany.isActive,
+            ],
+        )
+
+        return NextResponse.json(newCompany, { status: 201 })
+    } catch (error) {
+        console.error("Error creating insurance company:", error)
+        return NextResponse.json({ error: "Failed to create insurance company" }, { status: 500 })
     }
 }

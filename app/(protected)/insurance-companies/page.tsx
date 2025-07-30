@@ -3,65 +3,55 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { InsuranceCompanyForm } from "@/components/insurance-company-form"
 import { useToast } from "@/components/ui/use-toast"
-import { Plus, Search, MoreHorizontal, Edit, Building2, Phone, Mail, User } from "lucide-react"
+import { InsuranceCompanyForm } from "@/components/insurance-company-form"
+import { Building2, Plus, Search, MoreHorizontal, Edit, Trash2 } from "lucide-react"
 
 interface InsuranceCompany {
     id: string
     name: string
-    rif: string
-    phone: string
-    email: string
-    address: string
-    contactPerson: string
-    contactPhone: string
-    contactEmail: string
+    rif?: string
+    address?: string
+    phone?: string
+    email?: string
+    contactPerson?: string
+    contactPhone?: string
+    contactEmail?: string
     isActive: boolean
+    notes?: string
     createdAt: string
     updatedAt: string
 }
 
 export default function InsuranceCompaniesPage() {
-    const { toast } = useToast()
     const [companies, setCompanies] = useState<InsuranceCompany[]>([])
     const [filteredCompanies, setFilteredCompanies] = useState<InsuranceCompany[]>([])
-    const [isLoading, setIsLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
     const [showInactive, setShowInactive] = useState(false)
-    const [isFormOpen, setIsFormOpen] = useState(false)
-    const [selectedCompany, setSelectedCompany] = useState<InsuranceCompany | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [selectedCompany, setSelectedCompany] = useState<InsuranceCompany | undefined>()
 
-    useEffect(() => {
-        fetchCompanies()
-    }, [showInactive])
-
-    useEffect(() => {
-        filterCompanies()
-    }, [companies, searchTerm, showInactive])
+    const { toast } = useToast()
 
     const fetchCompanies = async () => {
         try {
             setIsLoading(true)
-            const url = `/api/insurance-companies${showInactive ? "?includeInactive=true" : ""}`
-            const response = await fetch(url)
-
-            if (!response.ok) {
-                throw new Error("Error fetching insurance companies")
-            }
-
+            const response = await fetch(`/api/insurance-companies?includeInactive=${showInactive}`)
+            if (!response.ok) throw new Error("Failed to fetch companies")
             const data = await response.json()
             setCompanies(data)
-        } catch (error: any) {
+            setFilteredCompanies(data)
+        } catch (error) {
             toast({
                 title: "Error",
-                description: error.message,
+                description: "Error al cargar las compañías de seguros",
                 variant: "destructive",
             })
         } finally {
@@ -69,55 +59,73 @@ export default function InsuranceCompaniesPage() {
         }
     }
 
-    const filterCompanies = () => {
-        let filtered = companies
-
-        if (searchTerm) {
-            filtered = filtered.filter(
-                (company) =>
-                    company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    company.rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    company.email?.toLowerCase().includes(searchTerm.toLowerCase()),
-            )
-        }
-
-        setFilteredCompanies(filtered)
-    }
-
-    const handleEdit = (company: InsuranceCompany) => {
-        setSelectedCompany(company)
-        setIsFormOpen(true)
-    }
-
-    const handleCreate = () => {
-        setSelectedCompany(null)
-        setIsFormOpen(true)
-    }
-
-    const handleFormSuccess = () => {
+    useEffect(() => {
         fetchCompanies()
-    }
+    }, [showInactive])
 
-    const handleToggleActive = async (company: InsuranceCompany) => {
+    useEffect(() => {
+        const filtered = companies.filter(
+            (company) =>
+                company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                company.rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                company.email?.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+        setFilteredCompanies(filtered)
+    }, [searchTerm, companies])
+
+    const handleSave = async (companyData: Partial<InsuranceCompany>) => {
         try {
-            const response = await fetch(`/api/insurance-companies/${company.id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    ...company,
-                    isActive: !company.isActive,
-                }),
+            const url = selectedCompany ? `/api/insurance-companies/${selectedCompany.id}` : "/api/insurance-companies"
+            const method = selectedCompany ? "PUT" : "POST"
+
+            const response = await fetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(companyData),
             })
 
+            const result = await response.json()
+
             if (!response.ok) {
-                throw new Error("Error updating company status")
+                throw new Error(result.error || "Error al guardar")
             }
 
             toast({
                 title: "Éxito",
-                description: `Compañía ${company.isActive ? "inactivada" : "activada"} correctamente`,
+                description: result.message,
+            })
+
+            setIsDialogOpen(false)
+            setSelectedCompany(undefined)
+            fetchCompanies()
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message,
+                variant: "destructive",
+            })
+        }
+    }
+
+    const handleDelete = async (company: InsuranceCompany) => {
+        if (!confirm(`¿Está seguro de que desea eliminar la compañía "${company.name}"?`)) {
+            return
+        }
+
+        try {
+            const response = await fetch(`/api/insurance-companies/${company.id}`, {
+                method: "DELETE",
+            })
+
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result.error || "Error al eliminar")
+            }
+
+            toast({
+                title: "Éxito",
+                description: result.message,
             })
 
             fetchCompanies()
@@ -130,27 +138,28 @@ export default function InsuranceCompaniesPage() {
         }
     }
 
+    const openCreateDialog = () => {
+        setSelectedCompany(undefined)
+        setIsDialogOpen(true)
+    }
+
+    const openEditDialog = (company: InsuranceCompany) => {
+        setSelectedCompany(company)
+        setIsDialogOpen(true)
+    }
+
     if (isLoading) {
-        return (
-            <div className="container mx-auto py-6">
-                <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                        <p className="mt-2 text-muted-foreground">Cargando compañías de seguros...</p>
-                    </div>
-                </div>
-            </div>
-        )
+        return <div>Cargando...</div>
     }
 
     return (
-        <div className="container mx-auto py-6 space-y-6">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Compañías de Seguros</h1>
                     <p className="text-muted-foreground">Gestiona las compañías de seguros del sistema</p>
                 </div>
-                <Button onClick={handleCreate}>
+                <Button onClick={openCreateDialog}>
                     <Plus className="mr-2 h-4 w-4" />
                     Nueva Compañía
                 </Button>
@@ -158,13 +167,15 @@ export default function InsuranceCompaniesPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Filtros y Búsqueda</CardTitle>
-                    <CardDescription>Busca y filtra las compañías de seguros</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5" />
+                        Compañías Registradas ({filteredCompanies.length})
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4 mb-6">
                         <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                             <Input
                                 placeholder="Buscar por nombre, RIF o email..."
                                 value={searchTerm}
@@ -177,138 +188,62 @@ export default function InsuranceCompaniesPage() {
                             <Label htmlFor="show-inactive">Mostrar inactivas</Label>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Compañías de Seguros ({filteredCompanies.length})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {filteredCompanies.length === 0 ? (
-                        <div className="text-center py-8">
-                            <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
-                            <h3 className="mt-2 text-sm font-semibold">No hay compañías</h3>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                {searchTerm
-                                    ? "No se encontraron compañías con los criterios de búsqueda"
-                                    : "Comienza creando una nueva compañía de seguros"}
-                            </p>
-                            {!searchTerm && (
-                                <Button onClick={handleCreate} className="mt-4">
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Nueva Compañía
-                                </Button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Compañía</TableHead>
-                                        <TableHead>RIF</TableHead>
-                                        <TableHead>Contacto</TableHead>
-                                        <TableHead>Información</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="w-[70px]">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredCompanies.map((company) => (
-                                        <TableRow key={company.id}>
-                                            <TableCell>
-                                                <div>
-                                                    <div className="font-medium">{company.name}</div>
-                                                    {company.address && (
-                                                        <div className="text-sm text-muted-foreground">
-                                                            {company.address.length > 50 ? `${company.address.substring(0, 50)}...` : company.address}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="text-sm">{company.rif || "No especificado"}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="space-y-1">
-                                                    {company.contactPerson && (
-                                                        <div className="flex items-center text-sm">
-                                                            <User className="mr-1 h-3 w-3" />
-                                                            {company.contactPerson}
-                                                        </div>
-                                                    )}
-                                                    {company.contactPhone && (
-                                                        <div className="flex items-center text-sm text-muted-foreground">
-                                                            <Phone className="mr-1 h-3 w-3" />
-                                                            {company.contactPhone}
-                                                        </div>
-                                                    )}
-                                                    {company.contactEmail && (
-                                                        <div className="flex items-center text-sm text-muted-foreground">
-                                                            <Mail className="mr-1 h-3 w-3" />
-                                                            {company.contactEmail}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="space-y-1">
-                                                    {company.phone && (
-                                                        <div className="flex items-center text-sm">
-                                                            <Phone className="mr-1 h-3 w-3" />
-                                                            {company.phone}
-                                                        </div>
-                                                    )}
-                                                    {company.email && (
-                                                        <div className="flex items-center text-sm text-muted-foreground">
-                                                            <Mail className="mr-1 h-3 w-3" />
-                                                            {company.email}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge
-                                                    variant={company.isActive ? "default" : "secondary"}
-                                                    className={company.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
-                                                >
-                                                    {company.isActive ? "Activa" : "Inactiva"}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" className="h-8 w-8 p-0">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onClick={() => handleEdit(company)}>
-                                                            <Edit className="mr-2 h-4 w-4" />
-                                                            Editar
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => handleToggleActive(company)}>
-                                                            {company.isActive ? "Inactivar" : "Activar"}
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                    <div className="grid gap-4">
+                        {filteredCompanies.map((company) => (
+                            <div
+                                key={company.id}
+                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                            >
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="font-semibold">{company.name}</h3>
+                                        <Badge variant={company.isActive ? "default" : "secondary"}>
+                                            {company.isActive ? "Activa" : "Inactiva"}
+                                        </Badge>
+                                    </div>
+                                    <div className="text-sm text-muted-foreground space-y-1">
+                                        {company.rif && <p>RIF: {company.rif}</p>}
+                                        {company.phone && <p>Teléfono: {company.phone}</p>}
+                                        {company.email && <p>Email: {company.email}</p>}
+                                        {company.contactPerson && <p>Contacto: {company.contactPerson}</p>}
+                                    </div>
+                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => openEditDialog(company)}>
+                                            <Edit className="mr-2 h-4 w-4" />
+                                            Editar
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleDelete(company)} className="text-red-600">
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Eliminar
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        ))}
+                    </div>
+
+                    {filteredCompanies.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">No se encontraron compañías de seguros</div>
                     )}
                 </CardContent>
             </Card>
 
-            <InsuranceCompanyForm
-                isOpen={isFormOpen}
-                onClose={() => setIsFormOpen(false)}
-                onSuccess={handleFormSuccess}
-                company={selectedCompany}
-            />
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{selectedCompany ? "Editar Compañía" : "Nueva Compañía de Seguros"}</DialogTitle>
+                    </DialogHeader>
+                    <InsuranceCompanyForm company={selectedCompany} onSave={handleSave} onCancel={() => setIsDialogOpen(false)} />
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

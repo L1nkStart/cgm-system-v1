@@ -15,7 +15,7 @@ interface Client {
     id: string
     name: string
     insuranceCompanyId?: string
-    insuranceCompany?: string
+    insuranceCompanyName?: string
     rif: string
     address?: string
     phone?: string
@@ -79,7 +79,6 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
                 const insuranceResponse = await fetch("/api/insurance-companies")
                 if (insuranceResponse.ok) {
                     const insuranceData = await insuranceResponse.json()
-                    console.log(insuranceData)
                     setInsuranceCompanies(insuranceData)
                 }
             } catch (error) {
@@ -109,7 +108,6 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
         const clientData = {
             name: name.trim(),
-            insuranceCompany: insuranceCompanies.find(c => c.id == insuranceCompanyId)?.name || "",
             insuranceCompanyId: insuranceCompanyId === "none" ? null : insuranceCompanyId,
             rif: rif.trim(),
             address: address.trim() || null,

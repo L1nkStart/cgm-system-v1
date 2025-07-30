@@ -138,7 +138,7 @@ export function AppSidebar({
       title: "Médicos",
       items: [
         {
-          title: "Médicos a bordo",
+          title: "Médicos",
           href: "/doctors", // Esta ruta aún no existe, es un placeholder
           icon: Stethoscope,
           roles: ["Superusuario", "Coordinador Regional"],

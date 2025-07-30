@@ -227,6 +227,17 @@ export async function POST(req: Request) {
       !baremoId ||
       !state
     ) {
+      console.log(
+        !clientId,
+        !date,
+        !patientName,
+        !ciPatient,
+        !patientPhone,
+        !assignedAnalystId,
+        !status,
+        !baremoId,
+        !state
+      )
       return NextResponse.json(
         {
           error:
