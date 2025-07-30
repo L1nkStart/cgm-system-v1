@@ -36,7 +36,19 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { name, rif, address, phone, email, contactPerson, contactPhone, contactEmail, baremoId, notes } = body
+        const {
+            name,
+            insuranceCompany,
+            rif,
+            address,
+            phone,
+            email,
+            contactPerson,
+            contactPhone,
+            contactEmail,
+            baremoId,
+            notes,
+        } = body
 
         if (!name || !rif) {
             return NextResponse.json({ error: "Nombre y RIF son requeridos" }, { status: 400 })
@@ -45,10 +57,23 @@ export async function POST(request: NextRequest) {
         const id = uuidv4()
         await pool.execute(
             `INSERT INTO clients (
-        id, name, rif, address, phone, email, contactPerson, 
+        id, name, insuranceCompany, rif, address, phone, email, contactPerson, 
         contactPhone, contactEmail, baremoId, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, name, rif, address, phone, email, contactPerson, contactPhone, contactEmail, baremoId, notes],
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                id,
+                name,
+                insuranceCompany,
+                rif,
+                address,
+                phone,
+                email,
+                contactPerson,
+                contactPhone,
+                contactEmail,
+                baremoId,
+                notes,
+            ],
         )
 
         return NextResponse.json({ success: true, message: "Cliente creado exitosamente" })
@@ -76,8 +101,20 @@ export async function PUT(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { name, rif, address, phone, email, contactPerson, contactPhone, contactEmail, baremoId, isActive, notes } =
-            body
+        const {
+            name,
+            insuranceCompany,
+            rif,
+            address,
+            phone,
+            email,
+            contactPerson,
+            contactPhone,
+            contactEmail,
+            baremoId,
+            isActive,
+            notes,
+        } = body
 
         if (!name || !rif) {
             return NextResponse.json({ error: "Nombre y RIF son requeridos" }, { status: 400 })
@@ -85,11 +122,25 @@ export async function PUT(request: NextRequest) {
 
         await pool.execute(
             `UPDATE clients SET 
-        name = ?, rif = ?, address = ?, phone = ?, email = ?, 
+        name = ?, insuranceCompany = ?, rif = ?, address = ?, phone = ?, email = ?, 
         contactPerson = ?, contactPhone = ?, contactEmail = ?, 
         baremoId = ?, isActive = ?, notes = ?
       WHERE id = ?`,
-            [name, rif, address, phone, email, contactPerson, contactPhone, contactEmail, baremoId, isActive, notes, id],
+            [
+                name,
+                insuranceCompany,
+                rif,
+                address,
+                phone,
+                email,
+                contactPerson,
+                contactPhone,
+                contactEmail,
+                baremoId,
+                isActive,
+                notes,
+                id,
+            ],
         )
 
         return NextResponse.json({ success: true, message: "Cliente actualizado exitosamente" })

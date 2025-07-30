@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 interface Client {
     id: string
     name: string
+    insuranceCompany?: string
     rif: string
     address?: string
     phone?: string
@@ -40,6 +41,7 @@ interface ClientFormProps {
 
 export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
     const [name, setName] = useState(client?.name || "")
+    const [insuranceCompany, setInsuranceCompany] = useState(client?.insuranceCompany || "")
     const [rif, setRif] = useState(client?.rif || "")
     const [address, setAddress] = useState(client?.address || "")
     const [phone, setPhone] = useState(client?.phone || "")
@@ -89,6 +91,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
         const clientData = {
             name: name.trim(),
+            insuranceCompany: insuranceCompany.trim() || null,
             rif: rif.trim(),
             address: address.trim() || null,
             phone: phone.trim() || null,
@@ -112,13 +115,23 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="name">Nombre de la Empresa *</Label>
+                    <Label htmlFor="name">Nombre del Cliente *</Label>
                     <Input
                         id="name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Ej: Clínica San Rafael"
                         required
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="insuranceCompany">Compañía de Seguros</Label>
+                    <Input
+                        id="insuranceCompany"
+                        value={insuranceCompany}
+                        onChange={(e) => setInsuranceCompany(e.target.value)}
+                        placeholder="Ej: Seguros Universales"
                     />
                 </div>
 
@@ -180,7 +193,7 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
                     />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="baremoId">Baremo Asignado</Label>
                     <Select value={baremoId} onValueChange={setBaremoId}>
                         <SelectTrigger id="baremoId">
