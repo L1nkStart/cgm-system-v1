@@ -3,7 +3,7 @@
 import { NewCaseForm } from "@/components/new-case-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 
 interface Service {
   name: string

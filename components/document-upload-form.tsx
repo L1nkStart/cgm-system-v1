@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { X, FileText, Upload, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -155,7 +155,7 @@ export function DocumentUploadForm({
     const dialogTitle = title || (uploadType === "pre-invoice" ? "Subir Prefactura" : "Subir Informe Médico y Resultados")
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={onClose} >
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>{dialogTitle}</DialogTitle>
@@ -195,13 +195,13 @@ export function DocumentUploadForm({
                     </div>
 
                     {(selectedFiles.length > 0 || existingDocuments.length > 0) && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 ">
                             <Label>Archivos Seleccionados / Documentos Existentes</Label>
-                            <div className="border rounded-md p-2 max-h-60 overflow-y-auto">
+                            <div className="border rounded-md p-2 max-h-60 overflow-y-auto flex">
                                 {existingDocuments.map((doc, index) => (
                                     <div
                                         key={`existing-${index}`}
-                                        className="flex items-center justify-between py-2 px-2 hover:bg-muted rounded-sm border-b last:border-b-0"
+                                        className="flex  items-center justify-between py-2 px-2 hover:bg-muted rounded-sm border-b last:border-b-0"
                                     >
                                         <div className="flex items-center gap-2 flex-1 min-w-0">
                                             <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
