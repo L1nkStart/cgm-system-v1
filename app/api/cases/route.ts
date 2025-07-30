@@ -124,15 +124,16 @@ export async function GET(req: Request) {
     }
 
     const [rows]: any = await pool.execute(query, params)
+    console.log(rows, "RD")
 
     // Parse JSON fields and ensure correct types
     const cases = rows.map((row: any) => {
       let services = []
       let documents = []
 
-      if (typeof row.services === "string" && row.services.length > 0) {
+      if (row.services.length > 0) {
         try {
-          services = JSON.parse(row.services)
+          services = row.services
         } catch (error) {
           console.error(`Error parsing services for case ID ${row.id}:`, row.services, error)
         }
@@ -145,6 +146,7 @@ export async function GET(req: Request) {
           console.error(`Error parsing documents for case ID ${row.id}:`, row.documents, error)
         }
       }
+      console.log(services, "AAA")
 
       return {
         ...row,

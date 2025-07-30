@@ -4,7 +4,8 @@ import pool from "@/lib/db" // Importa el pool de conexiones
 
 interface Procedure {
   name: string
-  cost: number
+  code: string // Added 'code' property for consistency with frontend
+  price: number // Changed 'cost' to 'price' for consistency
   isActive: boolean
   type: string
 }
@@ -37,12 +38,32 @@ export async function GET(req: Request) {
 
     const [rows]: any = await pool.execute(query, params)
 
-    // Parse JSON fields and ensure correct types
-    const baremos = rows.map((row: any) => ({
-      ...row,
-      procedures: row.procedures || [],
-      effectiveDate: row.effectiveDate ? new Date(row.effectiveDate).toISOString().split("T")[0] : null,
-    }))
+    const baremos = rows.map((row: any) => {
+      let proceduresParsed: Procedure[] = []
+      try {
+        // Attempt to parse procedures if it's a string, otherwise use as is or default to empty array
+        proceduresParsed = row.procedures ? (typeof row.procedures === 'string' ? JSON.parse(row.procedures) : row.procedures) : []
+
+        // Ensure each procedure object has 'code' and 'price' (from 'cost' if it was named that)
+        proceduresParsed = proceduresParsed.map((proc: any) => ({
+          name: proc.name || 'Sin nombre',
+          code: proc.code || (proc.id ? String(proc.id) : 'N/A'), // Fallback for code if not present, maybe use an ID if available
+          price: proc.price ?? proc.cost ?? 0, // Prioritize 'price', then 'cost', then 0
+          isActive: proc.isActive ?? true, // Default to true if not specified
+          type: proc.type || 'CONSULTA', // Default type
+        }));
+
+      } catch (e) {
+        console.error("Error parsing procedures JSON for baremo:", row.id, e)
+        proceduresParsed = [] // Fallback to empty array on parse error
+      }
+
+      return {
+        ...row,
+        procedures: proceduresParsed,
+        effectiveDate: row.effectiveDate ? new Date(row.effectiveDate).toISOString().split("T")[0] : null,
+      }
+    })
 
     if (id) {
       if (baremos.length > 0) {
@@ -66,12 +87,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 })
     }
 
+    // Ensure procedures are correctly formatted before saving
+    const formattedProcedures = procedures.map((proc: any) => ({
+      name: proc.name || 'Sin nombre',
+      code: proc.code || (proc.id ? String(proc.id) : uuidv4()), // Generate a code if missing, or use existing id
+      price: proc.price ?? proc.cost ?? 0,
+      isActive: proc.isActive ?? true,
+      type: proc.type || 'CONSULTA',
+    }));
+
     const newBaremo: Baremo = {
       id: uuidv4(),
       name,
       clinicName,
       effectiveDate,
-      procedures,
+      procedures: formattedProcedures, // Use the formatted procedures
     }
 
     await pool.execute("INSERT INTO baremos (id, name, clinicName, effectiveDate, procedures) VALUES (?, ?, ?, ?, ?)", [
@@ -79,7 +109,7 @@ export async function POST(req: Request) {
       newBaremo.name,
       newBaremo.clinicName,
       newBaremo.effectiveDate,
-      JSON.stringify(newBaremo.procedures),
+      JSON.stringify(newBaremo.procedures), // Store as JSON string
     ])
 
     return NextResponse.json(newBaremo, { status: 201 })
@@ -105,8 +135,16 @@ export async function PUT(req: Request) {
     for (const key in updates) {
       if (updates.hasOwnProperty(key)) {
         if (key === "procedures") {
+          // Ensure procedures are correctly formatted before saving
+          const formattedProcedures = updates[key].map((proc: any) => ({
+            name: proc.name || 'Sin nombre',
+            code: proc.code || (proc.id ? String(proc.id) : uuidv4()), // Generate a code if missing
+            price: proc.price ?? proc.cost ?? 0,
+            isActive: proc.isActive ?? true,
+            type: proc.type || 'CONSULTA',
+          }));
           updateFields.push(`${key} = ?`)
-          values.push(JSON.stringify(updates[key])) // Stringify JSON field
+          values.push(JSON.stringify(formattedProcedures)) // Stringify JSON field
         } else {
           updateFields.push(`${key} = ?`)
           values.push(updates[key])
@@ -115,7 +153,7 @@ export async function PUT(req: Request) {
     }
 
     if (updateFields.length === 0) {
-      return NextResponse.json({ error: "No fields to update" }, { status: 400 })
+      return NextResponse.json({ error: "No hay campos para actualizar" }, { status: 400 })
     }
 
     values.push(id)
@@ -127,9 +165,25 @@ export async function PUT(req: Request) {
 
     // Fetch the updated baremo to return
     const [updatedBaremoRows]: any = await pool.execute("SELECT * FROM baremos WHERE id = ?", [id])
+
+    let proceduresParsed: Procedure[] = [];
+    try {
+      proceduresParsed = updatedBaremoRows[0].procedures ? (typeof updatedBaremoRows[0].procedures === 'string' ? JSON.parse(updatedBaremoRows[0].procedures) : updatedBaremoRows[0].procedures) : [];
+      proceduresParsed = proceduresParsed.map((proc: any) => ({
+        name: proc.name || 'Sin nombre',
+        code: proc.code || (proc.id ? String(proc.id) : 'N/A'),
+        price: proc.price ?? proc.cost ?? 0,
+        isActive: proc.isActive ?? true,
+        type: proc.type || 'CONSULTA',
+      }));
+    } catch (e) {
+      console.error("Error parsing updated baremo procedures JSON:", updatedBaremoRows[0].id, e);
+      proceduresParsed = [];
+    }
+
     const updatedBaremo = {
       ...updatedBaremoRows[0],
-      procedures: updatedBaremoRows[0].procedures || [],
+      procedures: proceduresParsed,
       effectiveDate: updatedBaremoRows[0].effectiveDate
         ? new Date(updatedBaremoRows[0].effectiveDate).toISOString().split("T")[0]
         : null,
@@ -159,6 +213,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ message: "Baremo eliminado correctamente" }, { status: 200 })
   } catch (error) {
     console.error("Error deleting baremo:", error)
-    return NextResponse.json({ error: "Failed to delete baremo" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to delete baremos" }, { status: 500 })
   }
 }

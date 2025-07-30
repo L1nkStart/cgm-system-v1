@@ -107,6 +107,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
       }
       const data = await response.json()
       setCaseData(data)
+      console.log(data)
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.")
       toast({
@@ -310,6 +311,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const canScheduleAppointment = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
   const canGeneratePreInvoiceGlobally = isSuperusuario || isCoordinadorRegional // Keep this for other uses if needed
   const hasProcedures = caseData.services ? true : false
+  console.log(caseData.services, hasProcedures, "PP")
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
@@ -330,7 +332,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             <Button
               onClick={() => setIsScheduleAppointmentFormOpen(true)}
               className="bg-yellow-500 hover:bg-yellow-600 text-white"
-              disabled={hasProcedures}
+              disabled={!hasProcedures}
             >
               Agendar Cita
             </Button>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { getFullUserSession } from "@/lib/auth"
 
 export async function GET(req: Request) {
     try {
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
-        const session = await getSession()
+        const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
     try {
-        const session = await getSession()
+        const session = await getFullUserSession()
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
@@ -190,7 +190,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
     try {
-        const session = await getSession()
+        const session = await getFullUserSession()
         if (!session || (session.role !== "Superusuario" && session.role !== "Administrador")) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
