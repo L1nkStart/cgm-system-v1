@@ -306,7 +306,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const isCoordinadorRegional = userRole === "Coordinador Regional" // Keep this for other checks if needed
 
   const canEditCase = isSuperusuario || isCoordinadorRegional
-  const canAuditCase = isMedicoAuditor
+  const canAuditCase = isMedicoAuditor || isSuperusuario
   const canAddProcedure = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
   const canScheduleAppointment = isAnalystConcertado || isSuperusuario || isCoordinadorRegional
   const canGeneratePreInvoiceGlobally = isSuperusuario || isCoordinadorRegional // Keep this for other uses if needed
