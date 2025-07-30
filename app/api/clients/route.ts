@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         const {
             name,
             insuranceCompany,
+            insuranceCompanyId,
             rif,
             address,
             phone,
@@ -57,13 +58,14 @@ export async function POST(request: NextRequest) {
         const id = uuidv4()
         await pool.execute(
             `INSERT INTO clients (
-        id, name, insuranceCompany, rif, address, phone, email, contactPerson, 
+        id, name, insuranceCompany, insuranceCompanyId, rif, address, phone, email, contactPerson, 
         contactPhone, contactEmail, baremoId, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 id,
                 name,
                 insuranceCompany,
+                insuranceCompanyId,
                 rif,
                 address,
                 phone,

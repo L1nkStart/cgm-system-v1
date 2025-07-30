@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 interface Client {
     id: string
     name: string
+    insuranceCompanyId?: string
     insuranceCompany?: string
     rif: string
     address?: string
@@ -33,6 +34,12 @@ interface Baremo {
     clinicName: string
 }
 
+interface InsuranceCompany {
+    id: string
+    name: string
+    rif?: string
+}
+
 interface ClientFormProps {
     client?: Client
     onSave: (client: Partial<Client>) => void
@@ -41,7 +48,7 @@ interface ClientFormProps {
 
 export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
     const [name, setName] = useState(client?.name || "")
-    const [insuranceCompany, setInsuranceCompany] = useState(client?.insuranceCompany || "")
+    const [insuranceCompanyId, setInsuranceCompanyId] = useState(client?.insuranceCompanyId || "none")
     const [rif, setRif] = useState(client?.rif || "")
     const [address, setAddress] = useState(client?.address || "")
     const [phone, setPhone] = useState(client?.phone || "")
@@ -53,26 +60,37 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
     const [isActive, setIsActive] = useState(client?.isActive ?? true)
     const [notes, setNotes] = useState(client?.notes || "")
     const [baremos, setBaremos] = useState<Baremo[]>([])
+    const [insuranceCompanies, setInsuranceCompanies] = useState<InsuranceCompany[]>([])
     const [isLoading, setIsLoading] = useState(false)
 
     const { toast } = useToast()
 
     useEffect(() => {
-        const fetchBaremos = async () => {
+        const fetchData = async () => {
             try {
-                const response = await fetch("/api/baremos")
-                if (!response.ok) throw new Error("Failed to fetch baremos")
-                const data = await response.json()
-                setBaremos(data)
+                // Fetch baremos
+                const baremosResponse = await fetch("/api/baremos")
+                if (baremosResponse.ok) {
+                    const baremosData = await baremosResponse.json()
+                    setBaremos(baremosData)
+                }
+
+                // Fetch insurance companies
+                const insuranceResponse = await fetch("/api/insurance-companies")
+                if (insuranceResponse.ok) {
+                    const insuranceData = await insuranceResponse.json()
+                    console.log(insuranceData)
+                    setInsuranceCompanies(insuranceData)
+                }
             } catch (error) {
                 toast({
                     title: "Error",
-                    description: "Error al cargar los baremos",
+                    description: "Error al cargar los datos",
                     variant: "destructive",
                 })
             }
         }
-        fetchBaremos()
+        fetchData()
     }, [toast])
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -91,7 +109,8 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
 
         const clientData = {
             name: name.trim(),
-            insuranceCompany: insuranceCompany.trim() || null,
+            insuranceCompany: insuranceCompanies.find(c => c.id == insuranceCompanyId)?.name || "",
+            insuranceCompanyId: insuranceCompanyId === "none" ? null : insuranceCompanyId,
             rif: rif.trim(),
             address: address.trim() || null,
             phone: phone.trim() || null,
@@ -126,13 +145,20 @@ export function ClientForm({ client, onSave, onCancel }: ClientFormProps) {
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="insuranceCompany">Compañía de Seguros</Label>
-                    <Input
-                        id="insuranceCompany"
-                        value={insuranceCompany}
-                        onChange={(e) => setInsuranceCompany(e.target.value)}
-                        placeholder="Ej: Seguros Universales"
-                    />
+                    <Label htmlFor="insuranceCompanyId">Compañía de Seguros</Label>
+                    <Select value={insuranceCompanyId} onValueChange={setInsuranceCompanyId}>
+                        <SelectTrigger id="insuranceCompanyId">
+                            <SelectValue placeholder="Seleccione una compañía" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">Sin compañía asignada</SelectItem>
+                            {insuranceCompanies.map((company) => (
+                                <SelectItem key={company.id} value={company.id}>
+                                    {company.name} {company.rif && `(${company.rif})`}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 <div className="space-y-2">

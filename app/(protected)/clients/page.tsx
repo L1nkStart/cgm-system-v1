@@ -24,6 +24,7 @@ interface Client {
     baremoId?: string
     baremoName?: string
     baremoClinicName?: string
+    insuranceCompanyId?: string
     isActive: boolean
     notes?: string
 }
