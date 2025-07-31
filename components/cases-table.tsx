@@ -1,401 +1,395 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { ChevronDown } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { EditCaseForm } from "./edit-case-form"
-import { AuditCaseForm } from "./audit-case-form"
-import { InvoiceDetails } from "./invoice-details"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Eye, Edit, Trash2, Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import Link from "next/link"
+import { useToast } from "@/components/ui/use-toast"
 
-interface Service {
-  name: string
-  type: string
-  amount: number
-  attended: boolean
-}
-
-interface CaseData {
+interface Case {
   id: string
   client: string
   date: string
   sinisterNo: string
-  idNumber: string
-  ciTitular: string
-  ciPatient: string
   patientName: string
+  ciPatient: string
   patientPhone: string
-  assignedAnalystId: string
-  assignedAnalystName?: string
+  assignedAnalystName: string
   status: string
-  doctor?: string
-  schedule?: string
-  consultory?: string
-  results?: string
-  auditNotes?: string
-  clinicCost?: number
-  cgmServiceCost?: number
-  totalInvoiceAmount?: number
-  invoiceGenerated?: boolean
-  // New fields from image
-  creatorName?: string
-  creatorEmail?: string
-  creatorPhone?: string
-  patientOtherPhone?: string
-  patientFixedPhone?: string
-  patientBirthDate?: string
-  patientAge?: number
-  patientGender?: string
-  collective?: string
-  diagnosis?: string
-  provider?: string // This is the "Proveedor" in the image
-  state?: string // Case state
-  city?: string
-  address?: string
-  holderCI?: string
-  services?: Service[]
-  typeOfRequirement?: string // New field for type of requirement
+  state: string
+  city: string
+  baremoName: string
+  clinicCost: number
+  cgmServiceCost: number
+  totalInvoiceAmount: number
+}
+
+interface PaginationInfo {
+  currentPage: number
+  totalPages: number
+  totalCases: number
+  limit: number
+  hasNextPage: boolean
+  hasPreviousPage: boolean
 }
 
 interface CasesTableProps {
-  fetchUrl?: string // Make optional, as it might be constructed dynamically
-  showAnalystColumn?: boolean
-  userRole?: "Analista Concertado" | "Médico Auditor" | "Superusuario" | "Coordinador Regional" | "Jefe Financiero"
-  analystId?: string // For analyst-specific dashboard
-  statusFilter?: string // For auditor-specific dashboard or cancelled cases
-  userAssignedStates?: string[] // New prop: states assigned to the current user
+  analystId?: string
+  statusFilter?: string
+  statesFilter?: string
 }
 
-export function CasesTable({
-  fetchUrl = "/api/cases", // Default fetch URL
-  showAnalystColumn = false,
-  userRole,
-  analystId,
-  statusFilter,
-  userAssignedStates = [], // Default to empty array
-}: CasesTableProps) {
-  const [cases, setCases] = useState<CaseData[]>([])
+export function CasesTable({ analystId, statusFilter, statesFilter }: CasesTableProps) {
+  const [cases, setCases] = useState<Case[]>([])
+  const [filteredCases, setFilteredCases] = useState<Case[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false)
-  const [isAuditFormOpen, setIsAuditFormOpen] = useState(false)
-  const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false)
-  const [selectedCase, setSelectedCase] = useState<CaseData | null>(null)
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalCases: 0,
+    limit: 10,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  })
   const { toast } = useToast()
 
-  const fetchCases = async () => {
-    setLoading(true)
-    setError(null)
+  const fetchCases = async (page = 1, limit = 10) => {
     try {
-      const url = new URL(fetchUrl, window.location.origin)
-      if (analystId) {
-        url.searchParams.append("analystId", analystId)
-      }
-      if (statusFilter) {
-        url.searchParams.append("status", statusFilter)
-      }
-      // Add userAssignedStates to filter if the user is an analyst or auditor
-      if ((userRole === "Analista Concertado" || userRole === "Médico Auditor") && userAssignedStates.length > 0) {
-        url.searchParams.append("states", userAssignedStates.join(","))
-      }
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      })
 
-      // Add this line inside the fetchCases function, before the fetch call
-      console.log("CasesTable: Fetching cases from URL:", url.toString())
-      console.log("CasesTable: userRole:", userRole, "analystId:", analystId, "userAssignedStates:", userAssignedStates)
+      if (analystId) params.append("analystId", analystId)
+      if (statusFilter) params.append("status", statusFilter)
+      if (statesFilter) params.append("states", statesFilter)
 
-      const response = await fetch(url.toString())
+      const response = await fetch(`/api/cases?${params}`)
       if (!response.ok) {
         throw new Error("Failed to fetch cases")
       }
+
       const data = await response.json()
-      setCases(data)
-    } catch (err: any) {
-      setError(err.message)
+      setCases(data.cases || [])
+      setPagination(
+        data.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalCases: 0,
+          limit: 10,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      )
+    } catch (error) {
+      console.error("Error fetching cases:", error)
       toast({
         title: "Error",
-        description: `No se pudieron cargar los casos: ${err.message}`,
+        description: "Failed to fetch cases",
         variant: "destructive",
       })
+      setCases([])
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchCases()
-  }, [fetchUrl, analystId]) // Re-fetch when these props change
+    fetchCases(pagination.currentPage, pagination.limit)
+  }, [analystId, statusFilter, statesFilter])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Pendiente":
-        return "bg-orange-500 hover:bg-orange-500"
-      case "Agendado":
-        return "bg-green-500 hover:bg-green-500"
-      case "Atendido":
-        return "bg-emerald-500 hover:bg-emerald-500"
-      case "Priorizado":
-        return "bg-blue-500 hover:bg-blue-500"
-      case "Remesado":
-        return "bg-red-500 hover:bg-red-500"
-      case "Anulado":
-        return "bg-red-500 hover:bg-red-500" // Changed to red for "Anulado"
-      case "Pendiente por Auditar":
-        return "bg-yellow-500 hover:bg-yellow-500"
-      case "Auditado/Aprobado":
-        return "bg-purple-600 hover:bg-purple-600"
-      case "Auditado/Rechazado":
-        return "bg-red-600 hover:bg-red-600"
-      case "Pre-facturado":
-        return "bg-indigo-500 hover:bg-indigo-500"
-      default:
-        return "bg-gray-400 hover:bg-gray-400"
-    }
-  }
+  useEffect(() => {
+    const filtered = cases.filter(
+      (case_) =>
+        case_.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.ciPatient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.sinisterNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.assignedAnalystName?.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
+    setFilteredCases(filtered)
+  }, [cases, searchTerm])
 
-  const handleViewEditClick = (caseData: CaseData) => {
-    setSelectedCase(caseData)
-    if (userRole === "Analista Concertado") {
-      setIsEditFormOpen(true) // Analista puede editar el caso
-    } else if (userRole === "Médico Auditor") {
-      setIsAuditFormOpen(true) // Médico Auditor puede auditar
-    } else if (userRole === "Jefe Financiero" && caseData.status === "Auditado/Aprobado") {
-      setIsInvoiceFormOpen(true) // Jefe Financiero puede generar pre-factura
-    } else {
-      // Para otros roles o estados, navegar a la página de detalles
-      window.location.href = `/cases/${caseData.id}`
-    }
-  }
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Estás seguro de que quieres eliminar este caso?")) return
 
-  const handleSaveEditedCase = async (caseId: string, updates: Partial<CaseData>) => {
     try {
-      const response = await fetch(`/api/cases?id=${caseId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
+      const response = await fetch(`/api/cases?id=${id}`, {
+        method: "DELETE",
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to update case")
+        throw new Error("Failed to delete case")
       }
 
       toast({
         title: "Éxito",
-        description: "Caso actualizado correctamente.",
+        description: "Caso eliminado correctamente",
       })
-      fetchCases() // Refresh the list
-      setIsEditFormOpen(false) // Close form after saving
-    } catch (err: any) {
-      console.error("Error saving edited case:", err)
+
+      // Refresh the current page
+      fetchCases(pagination.currentPage, pagination.limit)
+    } catch (error) {
+      console.error("Error deleting case:", error)
       toast({
         title: "Error",
-        description: err.message || "No se pudo actualizar el caso.",
+        description: "Error al eliminar el caso",
         variant: "destructive",
       })
     }
   }
 
-  const handleAuditCase = async (caseId: string, newStatus: string, auditNotes?: string) => {
-    try {
-      const updates: Partial<CaseData> = { status: newStatus }
-      if (auditNotes) {
-        updates.auditNotes = auditNotes
-      }
+  const getStatusBadge = (status: string) => {
+    const statusColors: { [key: string]: string } = {
+      Pendiente: "bg-yellow-100 text-yellow-800",
+      "En Proceso": "bg-blue-100 text-blue-800",
+      Atendido: "bg-green-100 text-green-800",
+      Cancelado: "bg-red-100 text-red-800",
+      "Pendiente por Auditar": "bg-orange-100 text-orange-800",
+      Auditado: "bg-purple-100 text-purple-800",
+    }
 
-      const response = await fetch(`/api/cases?id=${caseId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      })
+    return <Badge className={statusColors[status] || "bg-gray-100 text-gray-800"}>{status}</Badge>
+  }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to audit case")
-      }
+  const exportToCSV = () => {
+    const headers = [
+      "ID",
+      "Cliente",
+      "Fecha",
+      "No. Siniestro",
+      "Paciente",
+      "CI Paciente",
+      "Teléfono",
+      "Analista",
+      "Estado",
+      "Estado Geográfico",
+      "Ciudad",
+      "Baremo",
+      "Costo Clínica",
+      "Costo CGM",
+      "Monto Total",
+    ]
 
-      toast({
-        title: "Éxito",
-        description: `Caso ${newStatus === "Auditado/Aprobado" ? "aprobado" : "rechazado"} por auditoría.`,
-      })
-      fetchCases() // Refresh the list
-      setIsAuditFormOpen(false) // Close form after auditing
-    } catch (err: any) {
-      console.error("Error auditing case:", err)
-      toast({
-        title: "Error",
-        description: err.message || "No se pudo auditar el caso.",
-        variant: "destructive",
-      })
+    const csvContent = [
+      headers.join(","),
+      ...cases.map((case_) =>
+        [
+          case_.id,
+          `"${case_.client}"`,
+          case_.date,
+          case_.sinisterNo,
+          `"${case_.patientName}"`,
+          case_.ciPatient,
+          case_.patientPhone,
+          `"${case_.assignedAnalystName}"`,
+          `"${case_.status}"`,
+          `"${case_.state}"`,
+          `"${case_.city}"`,
+          `"${case_.baremoName}"`,
+          case_.clinicCost || 0,
+          case_.cgmServiceCost || 0,
+          case_.totalInvoiceAmount || 0,
+        ].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `casos_${new Date().toISOString().split("T")[0]}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchCases(newPage, pagination.limit)
     }
   }
 
-  const handleGenerateInvoice = async (caseId: string, clinicCost: number, cgmServiceCost: number) => {
-    try {
-      const totalInvoiceAmount = clinicCost + cgmServiceCost
-      const updates: Partial<CaseData> = {
-        clinicCost,
-        cgmServiceCost,
-        totalInvoiceAmount,
-        status: "Pre-facturado", // Update status to pre-factured
-        invoiceGenerated: true,
-      }
-
-      const response = await fetch(`/api/cases?id=${caseId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate invoice")
-      }
-
-      toast({
-        title: "Éxito",
-        description: "Pre-factura generada correctamente.",
-      })
-      fetchCases() // Refresh the list
-      setIsInvoiceFormOpen(false) // Close form after generating invoice
-    } catch (err: any) {
-      console.error("Error generating invoice:", err)
-      toast({
-        title: "Error",
-        description: err.message || "No se pudo generar la pre-factura.",
-        variant: "destructive",
-      })
-    }
+  const handleLimitChange = (newLimit: string) => {
+    const limit = Number.parseInt(newLimit)
+    fetchCases(1, limit) // Reset to first page when changing limit
   }
 
-  if (loading) return <div className="text-center py-8">Cargando casos...</div>
-  if (error) return <div className="text-center py-8 text-red-500">Error: {error}</div>
+  const getPageInfo = () => {
+    const start = (pagination.currentPage - 1) * pagination.limit + 1
+    const end = Math.min(pagination.currentPage * pagination.limit, pagination.totalCases)
+    return `${start} a ${end} de ${pagination.totalCases} casos`
+  }
 
-  const stickyColumnWidth = '100px';
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Casos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center items-center h-32">
+            <div className="text-lg">Cargando casos...</div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
-    <div className="mt-6">
-      <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-2">
-        <Input type="date" placeholder="Buscar por fecha" className="w-full sm:max-w-xs" />
-        <Button className="bg-orange-600 hover:bg-orange-700 text-white w-full sm:w-auto">
-          <span className="mr-2">Exportar</span>
-          <ChevronDown className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="border rounded-lg overflow-hidden overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Nro. Siniestro</TableHead>
-              <TableHead>ID #</TableHead>
-              <TableHead>CI Titular</TableHead>
-              <TableHead>CI Paciente</TableHead>
-              <TableHead>Nombre Paciente</TableHead>
-              <TableHead>Teléfono Paciente</TableHead>
-              <TableHead>Tipo de requerimiento</TableHead>
-              <TableHead>Estado Caso</TableHead> {/* New column for case state */}
-              {showAnalystColumn && <TableHead>Analista Asignado</TableHead>}
-              <TableHead>Médico</TableHead>
-              <TableHead>Horario</TableHead>
-              <TableHead>Consultorio</TableHead>
-              {userRole === "Jefe Financiero" && (
-                <>
-                  <TableHead>Costo Clínica</TableHead>
-                  <TableHead>Costo CGM</TableHead>
-                  <TableHead>Total</TableHead>
-                </>
-              )}
-              <TableHead className="sticky right-[100px] z-20 bg-background">Status</TableHead>
-              <TableHead className="sticky right-0 z-20 bg-background">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cases.length === 0 ? (
+    <Card>
+      <CardHeader>
+        <CardTitle>Casos ({pagination.totalCases})</CardTitle>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <Input
+            placeholder="Buscar por paciente, CI, siniestro, cliente o analista..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+          <div className="flex gap-2">
+            <Select value={pagination.limit.toString()} onValueChange={handleLimitChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 por página</SelectItem>
+                <SelectItem value="10">10 por página</SelectItem>
+                <SelectItem value="20">20 por página</SelectItem>
+                <SelectItem value="30">30 por página</SelectItem>
+                <SelectItem value="50">50 por página</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={exportToCSV} variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell
-                  colSpan={userRole === "Jefe Financiero" ? 19 : showAnalystColumn ? 16 : 15} // Adjusted colspan
-                  className="text-center py-4"
-                >
-                  No hay casos registrados.
-                </TableCell>
+                <TableHead>Fecha</TableHead>
+                <TableHead>No. Siniestro</TableHead>
+                <TableHead>Paciente</TableHead>
+                <TableHead>CI</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Analista</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Estado Geo.</TableHead>
+                <TableHead>Baremo</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
-            ) : (
-              cases.map((caseItem) => (
-                <TableRow key={caseItem.id}>
-                  <TableCell>{caseItem.client}</TableCell>
-                  <TableCell>{caseItem.date}</TableCell>
-                  <TableCell>{caseItem.sinisterNo}</TableCell>
-                  <TableCell>{caseItem.idNumber}</TableCell>
-                  <TableCell>{caseItem.ciTitular}</TableCell>
-                  <TableCell>{caseItem.ciPatient}</TableCell>
-                  <TableCell>{caseItem.patientName}</TableCell>
-                  <TableCell>{caseItem.patientPhone}</TableCell>
-                  <TableCell>{caseItem.typeOfRequirement || "N/A"}</TableCell>
-                  <TableCell>{caseItem.state || "N/A"}</TableCell> {/* Display case state */}
-                  {showAnalystColumn && <TableCell>{caseItem.assignedAnalystName}</TableCell>}
-                  <TableCell>{caseItem.doctor || "N/A"}</TableCell>
-                  <TableCell>{caseItem.schedule || "N/A"}</TableCell>
-                  <TableCell>{caseItem.consultory || "N/A"}</TableCell>
-                  {userRole === "Jefe Financiero" && (
-                    <>
-                      <TableCell>${(caseItem.clinicCost || 0).toFixed(2)}</TableCell>
-                      <TableCell>${(caseItem.cgmServiceCost || 0).toFixed(2)}</TableCell>
-                      <TableCell>${(caseItem.totalInvoiceAmount || 0).toFixed(2)}</TableCell>
-                    </>
-                  )}
-                  {/* Columna del estado (Badge) */}
-                  <TableCell className={`sticky right-[${stickyColumnWidth}] min-w-[${stickyColumnWidth}] z-10 bg-background`}>
-                    <Badge className={`${getStatusColor(caseItem.status)} text-white`}>{caseItem.status}</Badge>
-                  </TableCell>
-                  {/* Columna de acciones (Ver botón) */}
-                  <TableCell className={`sticky right-0 min-w-[${stickyColumnWidth}] z-10 bg-background`}>
-                    <Link href={`/cases/${caseItem.id}`}>
-                      <Button variant="outline" size="sm">
-                        Ver
-                      </Button>
-                    </Link>
+            </TableHeader>
+            <TableBody>
+              {filteredCases.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center py-8">
+                    No se encontraron casos
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      {selectedCase && userRole === "Analista Concertado" && (
-        <EditCaseForm
-          isOpen={isEditFormOpen}
-          onClose={() => setIsEditFormOpen(false)}
-          onSave={handleSaveEditedCase}
-          initialData={selectedCase}
-        />
-      )}
-      {selectedCase && userRole === "Médico Auditor" && (
-        <AuditCaseForm
-          isOpen={isAuditFormOpen}
-          onClose={() => setIsAuditFormOpen(false)}
-          onAudit={handleAuditCase}
-          initialData={selectedCase}
-        />
-      )}
-      {selectedCase && userRole === "Jefe Financiero" && (
-        <InvoiceDetails
-          isOpen={isInvoiceFormOpen}
-          onClose={() => setIsInvoiceFormOpen(false)}
-          onGenerateInvoice={handleGenerateInvoice}
-          initialData={selectedCase}
-        />
-      )}
-    </div>
+              ) : (
+                filteredCases.map((case_) => (
+                  <TableRow key={case_.id}>
+                    <TableCell>{case_.date}</TableCell>
+                    <TableCell className="font-mono text-sm">{case_.sinisterNo}</TableCell>
+                    <TableCell className="font-medium">{case_.patientName}</TableCell>
+                    <TableCell>{case_.ciPatient}</TableCell>
+                    <TableCell>{case_.client}</TableCell>
+                    <TableCell>{case_.assignedAnalystName}</TableCell>
+                    <TableCell>{getStatusBadge(case_.status)}</TableCell>
+                    <TableCell>{case_.state}</TableCell>
+                    <TableCell>{case_.baremoName}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/cases/${case_.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/cases/${case_.id}/edit`}>
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(case_.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
+          <div className="text-sm text-muted-foreground">{getPageInfo()}</div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              disabled={!pagination.hasPreviousPage}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
+              disabled={!pagination.hasPreviousPage}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <div className="flex items-center gap-1">
+              <span className="text-sm">Página</span>
+              <span className="text-sm font-medium">
+                {pagination.currentPage} de {pagination.totalPages}
+              </span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
+              disabled={!pagination.hasNextPage}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.totalPages)}
+              disabled={!pagination.hasNextPage}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

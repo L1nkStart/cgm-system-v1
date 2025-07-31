@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import pool from "@/lib/db" // Importa el pool de conexiones
-import { getFullUserSession } from "@/lib/auth"
+import { getFullUserSession } from "@/lib/auth" // Import getFullUserSession
 
 // Define las interfaces para los datos (pueden estar en un archivo de tipos separado)
 interface Service {
@@ -19,7 +19,6 @@ interface Document {
 interface Case {
   id: string
   client: string
-  clientId: string
   date: string
   sinisterNo: string
   idNumber: string
@@ -59,8 +58,8 @@ interface Case {
   baremoId?: string // Nuevo campo para el ID del baremo
   baremoName?: string // Para display, no en DB directamente
   documents?: Document[] // New: documents field
+  patientId?: string // New: patient ID reference
 }
-
 
 export async function GET(req: Request) {
   try {
@@ -69,8 +68,11 @@ export async function GET(req: Request) {
     const analystId = searchParams.get("analystId")
     const statusFilter = searchParams.get("status")
     const statesFilter = searchParams.get("states") // New: filter by states
+    const page = Number.parseInt(searchParams.get("page") || "1")
+    const limit = Number.parseInt(searchParams.get("limit") || "10")
 
     const session = await getFullUserSession() // Get current user session
+
     console.log("API /api/cases GET: statesFilter from URL =", statesFilter)
     console.log(
       "API /api/cases GET: session.role =",
@@ -79,105 +81,143 @@ export async function GET(req: Request) {
       session?.assignedStates,
     )
 
-    let query = `
-      SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName
-      FROM cases c
-      LEFT JOIN users u ON c.assignedAnalystId = u.id
-      LEFT JOIN baremos b ON c.baremoId = b.id
-      WHERE 1=1
-    `
-    const params: any[] = []
-
+    // Si se solicita un caso específico, no aplicar paginación
     if (id) {
-      query += " AND c.id = ?"
-      params.push(id)
-    }
-    if (analystId) {
-      query += " AND c.assignedAnalystId = ?"
-      params.push(analystId)
-    }
-    if (statusFilter) {
-      const statuses = statusFilter.split(",")
-      query += ` AND c.status IN (${statuses.map(() => "?").join(",")})`
-      params.push(...statuses)
-    }
+      const query = `
+        SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName, p.name AS patientName, p.ci AS patientCI
+        FROM cases c
+        LEFT JOIN users u ON c.assignedAnalystId = u.id
+        LEFT JOIN baremos b ON c.baremoId = b.id
+        LEFT JOIN patients p ON c.patientId = p.id
+        WHERE c.id = ?
+      `
+      const [rows]: any = await pool.execute(query, [id])
 
-    // Apply state filtering based on user role and assigned states
-    // Note: session.assignedStates should already be an array if handled correctly on user login/fetch
-    if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
-      const userAssignedStates = session.assignedStates || [] // Ensure it's an array
-      if (userAssignedStates.length > 0) {
-        query += ` AND c.state IN (${userAssignedStates.map(() => "?").join(",")})`
-        params.push(...userAssignedStates)
-      } else {
-        // If user has these roles but no states assigned, they should see no cases
-        query += " AND 1=0" // Force no results
-      }
-    } else if (statesFilter) {
-      // Allow filtering by states if not an analyst/auditor (e.g., for Superusuario)
-      const states = statesFilter.split(",")
-      // Added a check to ensure 'states' is not empty after split
-      if (states.length > 0 && states[0] !== "") {
-        query += ` AND c.state IN (${states.map(() => "?").join(",")})`
-        params.push(...states)
-      }
-    }
-
-    const [rows]: any = await pool.execute(query, params)
-    console.log(rows, "RD")
-
-    // Parse JSON fields and ensure correct types
-    const cases = rows.map((row: any) => {
-      let services = []
-      let documents = []
-
-      if (row.services.length > 0) {
-        try {
-          services = row.services
-        } catch (error) {
-          console.error(`Error parsing services for case ID ${row.id}:`, row.services, error)
+      if (rows.length > 0) {
+        const caseData = {
+          ...rows[0],
+          services: rows[0].services ? rows[0].services : [],
+          documents: rows[0].documents ? rows[0].documents : [],
+          preInvoiceDocuments: rows[0].preInvoiceDocuments ? rows[0].preInvoiceDocuments : [],
+          date: rows[0].date ? new Date(rows[0].date).toISOString().split("T")[0] : null,
+          patientBirthDate: rows[0].patientBirthDate
+            ? new Date(rows[0].patientBirthDate).toISOString().split("T")[0]
+            : null,
+          clinicCost: rows[0].clinicCost !== null ? Number(rows[0].clinicCost) : null,
+          cgmServiceCost: rows[0].cgmServiceCost !== null ? Number(rows[0].cgmServiceCost) : null,
+          totalInvoiceAmount: rows[0].totalInvoiceAmount !== null ? Number(rows[0].totalInvoiceAmount) : null,
         }
-      }
 
-      if (typeof row.documents === "string" && row.documents.length > 0) {
-        try {
-          documents = JSON.parse(row.documents)
-        } catch (error) {
-          console.error(`Error parsing documents for case ID ${row.id}:`, row.documents, error)
-        }
-      }
-      console.log(services, "AAA")
-
-      return {
-        ...row,
-        services: services,
-        documents: documents,
-        // Convert Date objects to string if needed for consistency
-        date: row.date ? new Date(row.date).toISOString().split("T")[0] : null,
-        patientBirthDate: row.patientBirthDate ? new Date(row.patientBirthDate).toISOString().split("T")[0] : null,
-        // Convert numeric fields to actual numbers, handling potential string numbers from DB
-        clinicCost: row.clinicCost !== null ? Number(row.clinicCost) : null,
-        cgmServiceCost: row.cgmServiceCost !== null ? Number(row.cgmServiceCost) : null,
-        totalInvoiceAmount: row.totalInvoiceAmount !== null ? Number(row.totalInvoiceAmount) : null,
-      }
-    })
-
-    if (id) {
-      if (cases.length > 0) {
-        // If fetching a single case, ensure it matches the user's assigned states if applicable
+        // Verificar permisos de estado si es necesario
         if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
           const userAssignedStates = session.assignedStates || []
-          // Assuming `cases[0].state` is a simple string like "Carabobo"
-          if (userAssignedStates.length > 0 && !userAssignedStates.includes(cases[0].state)) {
+          if (userAssignedStates.length > 0 && !userAssignedStates.includes(caseData.state)) {
             return NextResponse.json({ error: "Access denied to this case based on assigned states" }, { status: 403 })
           }
         }
-        return NextResponse.json(cases[0])
+
+        return NextResponse.json(caseData)
       }
       return NextResponse.json({ error: "Case not found" }, { status: 404 })
     }
 
-    return NextResponse.json(cases)
+    // Construir condiciones WHERE
+    const whereConditions: string[] = ["1=1"]
+    const queryParams: any[] = []
+
+    if (analystId) {
+      whereConditions.push("c.assignedAnalystId = ?")
+      queryParams.push(analystId)
+    }
+
+    if (statusFilter) {
+      const statuses = statusFilter.split(",")
+      const statusPlaceholders = statuses.map(() => "?").join(",")
+      whereConditions.push(`c.status IN (${statusPlaceholders})`)
+      queryParams.push(...statuses)
+    }
+
+    // Apply state filtering based on user role and assigned states
+    if (session && (session.role === "Analista Concertado" || session.role === "Médico Auditor")) {
+      const userAssignedStates = session.assignedStates || []
+      if (userAssignedStates.length > 0) {
+        const statePlaceholders = userAssignedStates.map(() => "?").join(",")
+        whereConditions.push(`c.state IN (${statePlaceholders})`)
+        queryParams.push(...userAssignedStates)
+      } else {
+        // If user has these roles but no states assigned, they should see no cases
+        whereConditions.push("1=0")
+      }
+    } else if (statesFilter) {
+      // Allow filtering by states if not an analyst/auditor (e.g., for Superusuario)
+      const states = statesFilter.split(",")
+      if (states.length > 0 && states[0] !== "") {
+        const statePlaceholders = states.map(() => "?").join(",")
+        whereConditions.push(`c.state IN (${statePlaceholders})`)
+        queryParams.push(...states)
+      }
+    }
+
+    const whereClause = whereConditions.join(" AND ")
+
+    // Consulta de conteo
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM cases c
+      LEFT JOIN users u ON c.assignedAnalystId = u.id
+      LEFT JOIN baremos b ON c.baremoId = b.id
+      LEFT JOIN patients p ON c.patientId = p.id
+      WHERE ${whereClause}
+    `
+
+    const [countRows]: any = await pool.execute(countQuery, queryParams)
+    const totalCases = countRows[0].total
+
+    // Consulta principal con paginación
+    const offset = (page - 1) * limit
+
+    // ===== INICIO DE LA CORRECCIÓN =====
+
+    const mainQuery = `
+      SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName, p.name AS patientName, p.ci AS patientCI
+      FROM cases c
+      LEFT JOIN users u ON c.assignedAnalystId = u.id
+      LEFT JOIN baremos b ON c.baremoId = b.id
+      LEFT JOIN patients p ON c.patientId = p.id
+      WHERE ${whereClause}
+      ORDER BY c.date DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `
+    // No se crea un array de parámetros adicional. Se usan los queryParams directamente.
+    const [rows]: any = await pool.execute(mainQuery, queryParams)
+
+    // ===== FIN DE LA CORRECCIÓN =====
+
+    // Parse JSON fields and ensure correct types
+    const cases = rows.map((row: any) => ({
+      ...row,
+      services: row.services ? row.services : [],
+      documents: row.documents ? row.documents : [],
+      preInvoiceDocuments: row.preInvoiceDocuments ? row.preInvoiceDocuments : [],
+      date: row.date ? new Date(row.date).toISOString().split("T")[0] : null,
+      patientBirthDate: row.patientBirthDate ? new Date(row.patientBirthDate).toISOString().split("T")[0] : null,
+      clinicCost: row.clinicCost !== null ? Number(row.clinicCost) : null,
+      cgmServiceCost: row.cgmServiceCost !== null ? Number(row.cgmServiceCost) : null,
+      totalInvoiceAmount: row.totalInvoiceAmount !== null ? Number(row.totalInvoiceAmount) : null,
+    }))
+
+    // Return paginated response
+    return NextResponse.json({
+      cases,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalCases / limit),
+        totalCases,
+        limit,
+        hasNextPage: page < Math.ceil(totalCases / limit),
+        hasPreviousPage: page > 1,
+      },
+    })
   } catch (error) {
     console.error("Error fetching cases:", error)
     return NextResponse.json({ error: "Failed to fetch cases" }, { status: 500 })
@@ -187,7 +227,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const {
-      clientId,
       client,
       date,
       patientName,
@@ -214,10 +253,11 @@ export async function POST(req: Request) {
       typeOfRequirement,
       baremoId, // Nuevo campo
       documents, // New: documents field
+      patientId, // New: patient ID reference
     } = await req.json()
 
     if (
-      !clientId ||
+      !client ||
       !date ||
       !patientName ||
       !ciPatient ||
@@ -227,17 +267,6 @@ export async function POST(req: Request) {
       !baremoId ||
       !state
     ) {
-      console.log(
-        !clientId,
-        !date,
-        !patientName,
-        !ciPatient,
-        !patientPhone,
-        !assignedAnalystId,
-        !status,
-        !baremoId,
-        !state
-      )
       return NextResponse.json(
         {
           error:
@@ -251,7 +280,7 @@ export async function POST(req: Request) {
     const [analystRows]: any = await pool.execute("SELECT assignedStates FROM users WHERE id = ?", [assignedAnalystId])
     const analyst = analystRows[0]
     if (analyst && analyst.assignedStates) {
-      const analystStates = analyst.assignedStates
+      const analystStates = JSON.parse(analyst.assignedStates)
       if (!analystStates.includes(state)) {
         return NextResponse.json(
           { error: `El analista asignado no puede manejar casos del estado: ${state}` },
@@ -272,7 +301,6 @@ export async function POST(req: Request) {
 
     const newCase: Case = {
       id: uuidv4(),
-      clientId,
       client,
       date,
       sinisterNo: Math.floor(Math.random() * 100000).toString(),
@@ -306,19 +334,19 @@ export async function POST(req: Request) {
       typeOfRequirement: typeOfRequirement || "CONSULTA",
       baremoId, // Incluir el baremoId
       documents: documents || [], // Initialize documents
+      patientId: patientId || null, // Include patient ID reference
     }
 
     await pool.execute(
       `INSERT INTO cases (
-     id, clientId, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
-     assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
-     cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
-     patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
-     diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId, documents
-   ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
+      assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
+      cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
+      patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
+      diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId, documents, patientId
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
-        newCase.clientId,
         newCase.client,
         newCase.date,
         newCase.sinisterNo,
@@ -357,6 +385,7 @@ export async function POST(req: Request) {
         newCase.typeOfRequirement,
         newCase.baremoId, // Añadir baremoId a los valores
         JSON.stringify(newCase.documents), // Save documents
+        newCase.patientId, // Save patient ID reference
       ],
     )
 
@@ -381,7 +410,7 @@ export async function PUT(req: Request) {
 
     // Fetch current case data to determine status change logic and analyst state validation
     const [currentCaseRows]: any = await pool.execute(
-      "SELECT assignedAnalystId, state, status, documents FROM cases WHERE id = ?",
+      "SELECT assignedAnalystId, state, status, documents, preInvoiceDocuments FROM cases WHERE id = ?",
       [id],
     )
     const currentCase = currentCaseRows[0]
@@ -404,8 +433,8 @@ export async function PUT(req: Request) {
         if (analyst) {
           // Safely parse assignedStates, handling null or empty string
           const analystStates =
-            analyst.assignedStates && analyst.assignedStates.length > 0
-              ? analyst.assignedStates
+            analyst.assignedStates && typeof analyst.assignedStates === "string" && analyst.assignedStates.length > 0
+              ? JSON.parse(analyst.assignedStates)
               : []
 
           if (analyst.role === "Analista Concertado" || analyst.role === "Médico Auditor") {
@@ -427,6 +456,7 @@ export async function PUT(req: Request) {
     }
 
     // Logic for automatic status change to "Pendiente por Auditar" after document upload
+    // This logic applies if documents are being updated AND the current status is "Atendido"
     if (updates.documents && currentCase.status === "Atendido") {
       updates.status = "Pendiente por Auditar"
       console.log(`Case ${id} status changed to 'Pendiente por Auditar' due to document upload.`)
@@ -437,8 +467,8 @@ export async function PUT(req: Request) {
 
     for (const key in updates) {
       if (updates.hasOwnProperty(key)) {
-        if (key === "services" || key === "documents") {
-          // Handle both services and documents as JSON
+        if (key === "services" || key === "documents" || key === "preInvoiceDocuments") {
+          // Handle JSON fields
           updateFields.push(`${key} = ?`)
           values.push(JSON.stringify(updates[key])) // Stringify JSON field when sending to DB
         } else {
@@ -451,7 +481,7 @@ export async function PUT(req: Request) {
     if (updateFields.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 })
     }
-    console.log("Debug: ", updateFields)
+
     values.push(id)
     const [result]: any = await pool.execute(`UPDATE cases SET ${updateFields.join(", ")} WHERE id = ?`, values)
 
@@ -463,8 +493,11 @@ export async function PUT(req: Request) {
     const [updatedCaseRows]: any = await pool.execute("SELECT * FROM cases WHERE id = ?", [id])
     const updatedCase = {
       ...updatedCaseRows[0],
-      services: updatedCaseRows[0].services ? updatedCaseRows[0].services : [],
-      documents: updatedCaseRows[0].documents ? updatedCaseRows[0].documents : [],
+      services: updatedCaseRows[0].services ? JSON.parse(updatedCaseRows[0].services) : [],
+      documents: updatedCaseRows[0].documents ? JSON.parse(updatedCaseRows[0].documents) : [],
+      preInvoiceDocuments: updatedCaseRows[0].preInvoiceDocuments
+        ? JSON.parse(updatedCaseRows[0].preInvoiceDocuments)
+        : [],
       date: updatedCaseRows[0].date ? new Date(updatedCaseRows[0].date).toISOString().split("T")[0] : null,
       patientBirthDate: updatedCaseRows[0].patientBirthDate
         ? new Date(updatedCaseRows[0].patientBirthDate).toISOString().split("T")[0]
