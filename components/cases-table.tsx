@@ -322,11 +322,6 @@ export function CasesTable({ analystId, statusFilter, statesFilter }: CasesTable
                             <Eye className="h-4 w-4" />
                           </Link>
                         </Button>
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/cases/${case_.id}/edit`}>
-                            <Edit className="h-4 w-4" />
-                          </Link>
-                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
