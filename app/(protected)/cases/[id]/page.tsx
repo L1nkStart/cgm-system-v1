@@ -107,7 +107,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
       }
       const data = await response.json()
       setCaseData(data)
-      console.log(data)
+      console.log("AAAA", data, "az")
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.")
       toast({

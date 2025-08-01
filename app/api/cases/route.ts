@@ -18,14 +18,10 @@ interface Document {
 
 interface Case {
   id: string
-  client: string
+  clientId: string
   date: string
   sinisterNo: string
   idNumber: string
-  ciTitular: string
-  ciPatient: string
-  patientName: string
-  patientPhone: string
   assignedAnalystId: string
   assignedAnalystName?: string // Para display, no en DB directamente
   status: string
@@ -41,18 +37,13 @@ interface Case {
   creatorName?: string
   creatorEmail?: string
   creatorPhone?: string
-  patientOtherPhone?: string
-  patientFixedPhone?: string
-  patientBirthDate?: string
-  patientAge?: number
-  patientGender?: string
   collective?: string
   diagnosis?: string
   provider?: string
   state?: string
   city?: string
   address?: string
-  holderCI?: string
+  holderId?: string
   services?: Service[]
   typeOfRequirement?: string
   baremoId?: string // Nuevo campo para el ID del baremo
@@ -73,25 +64,38 @@ export async function GET(req: Request) {
 
     const session = await getFullUserSession() // Get current user session
 
-    console.log("API /api/cases GET: statesFilter from URL =", statesFilter)
-    console.log(
-      "API /api/cases GET: session.role =",
-      session?.role,
-      "session.assignedStates =",
-      session?.assignedStates,
-    )
-
     // Si se solicita un caso específico, no aplicar paginación
     if (id) {
       const query = `
-        SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName, p.name AS patientName, p.ci AS patientCI
+        SELECT
+          c.*,
+          u.name AS assignedAnalystName,
+          b.name AS baremoName,
+          p.name AS patientName,
+          p.ci AS ciPatient,
+          p.phone AS patientPhone,
+          p.otherPhone AS patientOtherPhone,
+          p.fixedPhone AS patientFixedPhone,
+          p.age as patientAge,
+          p.birthDate patientBirthDate,
+          p.gender patientGender,
+          t.name AS holderName,
+          cli.name AS clientName
         FROM cases c
-        LEFT JOIN users u ON c.assignedAnalystId = u.id
-        LEFT JOIN baremos b ON c.baremoId = b.id
-        LEFT JOIN patients p ON c.patientId = p.id
+        LEFT JOIN users u
+          ON c.assignedAnalystId = u.id
+        LEFT JOIN baremos b
+          ON c.baremoId = b.id
+        LEFT JOIN patients p
+          ON c.patientId = p.id
+        LEFT JOIN insurance_holders t
+          ON c.holderId = t.id
+        LEFT JOIN clients cli
+          ON c.clientId = cli.id
         WHERE c.id = ?
       `
       const [rows]: any = await pool.execute(query, [id])
+      console.log("perro", rows)
 
       if (rows.length > 0) {
         const caseData = {
@@ -179,17 +183,33 @@ export async function GET(req: Request) {
     // ===== INICIO DE LA CORRECCIÓN =====
 
     const mainQuery = `
-      SELECT c.*, u.name AS assignedAnalystName, b.name AS baremoName, p.name AS patientName, p.ci AS patientCI
-      FROM cases c
-      LEFT JOIN users u ON c.assignedAnalystId = u.id
-      LEFT JOIN baremos b ON c.baremoId = b.id
-      LEFT JOIN patients p ON c.patientId = p.id
+      SELECT
+          c.*,
+          u.name AS assignedAnalystName,
+          b.name AS baremoName,
+          p.name AS patientName,
+          p.ci AS ciPatient,
+          p.phone AS patientPhone,
+          t.name AS holderName,
+          cli.name AS clientName
+        FROM cases c
+        LEFT JOIN users u
+          ON c.assignedAnalystId = u.id
+        LEFT JOIN baremos b
+          ON c.baremoId = b.id
+        LEFT JOIN patients p
+          ON c.patientId = p.id
+        LEFT JOIN insurance_holders t
+          ON c.holderId = t.id
+        LEFT JOIN clients cli
+          ON c.clientId = cli.id
       WHERE ${whereClause}
       ORDER BY c.date DESC
       LIMIT ${limit} OFFSET ${offset}
     `
     // No se crea un array de parámetros adicional. Se usan los queryParams directamente.
     const [rows]: any = await pool.execute(mainQuery, queryParams)
+    console.log("azul", rows)
 
     // ===== FIN DE LA CORRECCIÓN =====
 
@@ -227,50 +247,47 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const {
-      client,
+      clientId,
       date,
-      patientName,
-      ciPatient,
-      patientPhone,
       assignedAnalystId,
       status,
       creatorName,
       creatorEmail,
       creatorPhone,
-      patientOtherPhone,
-      patientFixedPhone,
-      patientBirthDate,
-      patientAge,
-      patientGender,
       collective,
       diagnosis,
       provider,
-      state, // New: case state
+      state,
       city,
       address,
-      holderCI,
       services,
       typeOfRequirement,
       baremoId, // Nuevo campo
       documents, // New: documents field
       patientId, // New: patient ID reference
+      holderId
     } = await req.json()
 
     if (
-      !client ||
+      !clientId ||
       !date ||
-      !patientName ||
-      !ciPatient ||
-      !patientPhone ||
+      !holderId ||
+      !baremoId ||
       !assignedAnalystId ||
       !status ||
-      !baremoId ||
       !state
     ) {
+      console.log(!clientId,
+        !date,
+        !holderId,
+        !baremoId,
+        !assignedAnalystId,
+        !status,
+        !state)
       return NextResponse.json(
         {
           error:
-            "Missing required fields: client, date, patientName, ciPatient, patientPhone, assignedAnalystId, status, baremoId, state",
+            `Faltan campos importantes ${holderId}`,
         },
         { status: 400 },
       )
@@ -280,7 +297,7 @@ export async function POST(req: Request) {
     const [analystRows]: any = await pool.execute("SELECT assignedStates FROM users WHERE id = ?", [assignedAnalystId])
     const analyst = analystRows[0]
     if (analyst && analyst.assignedStates) {
-      const analystStates = JSON.parse(analyst.assignedStates)
+      const analystStates = analyst.assignedStates
       if (!analystStates.includes(state)) {
         return NextResponse.json(
           { error: `El analista asignado no puede manejar casos del estado: ${state}` },
@@ -301,35 +318,26 @@ export async function POST(req: Request) {
 
     const newCase: Case = {
       id: uuidv4(),
-      client,
+      clientId,
       date,
       sinisterNo: Math.floor(Math.random() * 100000).toString(),
       idNumber: `V-${Math.floor(Math.random() * 10000000).toString()}`,
-      ciTitular: `V-${Math.floor(Math.random() * 10000000).toString()}`, // Usar el valor del formulario o generar
-      ciPatient,
-      patientName,
-      patientPhone,
       assignedAnalystId,
       status,
       clinicCost: 0,
       cgmServiceCost: 0,
       totalInvoiceAmount: 0,
       invoiceGenerated: false,
-      creatorName: creatorName || "Coordinador Regional", // Mantener default si no se envía
-      creatorEmail: creatorEmail || "coord@cgm.com", // Mantener default si no se envía
+      creatorName: creatorName || "SYS", // Mantener default si no se envía
+      creatorEmail: creatorEmail || "SYS@cgm.com", // Mantener default si no se envía
       creatorPhone: creatorPhone || "0412-9999999", // Mantener default si no se envía
-      patientOtherPhone: patientOtherPhone || null, // Usar null si está vacío
-      patientFixedPhone: patientFixedPhone || null, // Usar null si está vacío
-      patientBirthDate: patientBirthDate || null,
-      patientAge: patientAge ? Number(patientAge) : undefined,
-      patientGender: patientGender || null,
       collective: collective || null,
       diagnosis: diagnosis || null,
       provider: provider || null,
       state: state || null, // Save case state
       city: city || null,
       address: address || null,
-      holderCI: holderCI || null, // Usar el valor del formulario o null
+      holderId: holderId,
       services: services || [],
       typeOfRequirement: typeOfRequirement || "CONSULTA",
       baremoId, // Incluir el baremoId
@@ -339,22 +347,17 @@ export async function POST(req: Request) {
 
     await pool.execute(
       `INSERT INTO cases (
-      id, client, date, sinisterNo, idNumber, ciTitular, ciPatient, patientName, patientPhone,
+      id, clientId, date, sinisterNo, idNumber,
       assignedAnalystId, status, doctor, schedule, consultory, results, auditNotes, clinicCost,
-      cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone,
-      patientOtherPhone, patientFixedPhone, patientBirthDate, patientAge, patientGender, collective,
-      diagnosis, provider, state, city, address, holderCI, services, typeOfRequirement, baremoId, documents, patientId
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      cgmServiceCost, totalInvoiceAmount, invoiceGenerated, creatorName, creatorEmail, creatorPhone, collective,
+      diagnosis, provider, state, city, address, holderId, services, typeOfRequirement, baremoId, documents, patientId
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCase.id,
-        newCase.client,
+        newCase.clientId,
         newCase.date,
         newCase.sinisterNo,
         newCase.idNumber,
-        newCase.ciTitular,
-        newCase.ciPatient,
-        newCase.patientName,
-        newCase.patientPhone,
         newCase.assignedAnalystId,
         newCase.status,
         newCase.doctor || null,
@@ -369,23 +372,18 @@ export async function POST(req: Request) {
         newCase.creatorName,
         newCase.creatorEmail,
         newCase.creatorPhone,
-        newCase.patientOtherPhone,
-        newCase.patientFixedPhone,
-        newCase.patientBirthDate,
-        newCase.patientAge,
-        newCase.patientGender,
         newCase.collective,
         newCase.diagnosis,
         newCase.provider,
-        newCase.state, // Save case state
+        newCase.state,
         newCase.city,
         newCase.address,
-        newCase.holderCI,
+        newCase.holderId,
         JSON.stringify(newCase.services),
         newCase.typeOfRequirement,
-        newCase.baremoId, // Añadir baremoId a los valores
-        JSON.stringify(newCase.documents), // Save documents
-        newCase.patientId, // Save patient ID reference
+        newCase.baremoId,
+        JSON.stringify(newCase.documents),
+        newCase.patientId,
       ],
     )
 
@@ -493,10 +491,10 @@ export async function PUT(req: Request) {
     const [updatedCaseRows]: any = await pool.execute("SELECT * FROM cases WHERE id = ?", [id])
     const updatedCase = {
       ...updatedCaseRows[0],
-      services: updatedCaseRows[0].services ? JSON.parse(updatedCaseRows[0].services) : [],
-      documents: updatedCaseRows[0].documents ? JSON.parse(updatedCaseRows[0].documents) : [],
+      services: updatedCaseRows[0].services ? updatedCaseRows[0].services : [],
+      documents: updatedCaseRows[0].documents ? updatedCaseRows[0].documents : [],
       preInvoiceDocuments: updatedCaseRows[0].preInvoiceDocuments
-        ? JSON.parse(updatedCaseRows[0].preInvoiceDocuments)
+        ? updatedCaseRows[0].preInvoiceDocuments
         : [],
       date: updatedCaseRows[0].date ? new Date(updatedCaseRows[0].date).toISOString().split("T")[0] : null,
       patientBirthDate: updatedCaseRows[0].patientBirthDate
@@ -512,5 +510,31 @@ export async function PUT(req: Request) {
   } catch (error) {
     console.error("Error updating case:", error)
     return NextResponse.json({ error: "Failed to update case" }, { status: 500 })
+  }
+}
+
+// ... (tu código existente de GET, POST y PUT)
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Case ID is required" }, { status: 400 });
+    }
+
+    // Ejecuta la sentencia DELETE
+    const [result]: any = await pool.execute("DELETE FROM cases WHERE id = ?", [id]);
+
+    // Si no se eliminó ninguna fila, significa que el caso no se encontró
+    if (result.affectedRows === 0) {
+      return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ message: `Case with ID ${id} deleted successfully.` }, { status: 200 });
+  } catch (error) {
+    console.error("Error deleting case:", error);
+    return NextResponse.json({ error: "Failed to delete case" }, { status: 500 });
   }
 }

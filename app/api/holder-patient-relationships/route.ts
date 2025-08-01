@@ -76,8 +76,8 @@ export async function POST(req: Request) {
 
         if (existingRelationship.length > 0) {
             return NextResponse.json(
-                { error: "Ya existe una relación activa entre este titular y paciente" },
-                { status: 400 },
+                { mesagge: "Ya existe una relación activa entre este titular y paciente" },
+                { status: 201 },
             )
         }
 

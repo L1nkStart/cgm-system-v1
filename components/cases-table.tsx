@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/use-toast"
 
 interface Case {
   id: string
-  client: string
+  clientName: string
   date: string
   sinisterNo: string
   patientName: string
@@ -109,9 +109,10 @@ export function CasesTable({ analystId, statusFilter, statesFilter }: CasesTable
     const filtered = cases.filter(
       (case_) =>
         case_.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        case_.ciPatient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.patientCI?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         case_.sinisterNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        case_.client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        case_.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         case_.assignedAnalystName?.toLowerCase().includes(searchTerm.toLowerCase()),
     )
     setFilteredCases(filtered)
@@ -183,11 +184,11 @@ export function CasesTable({ analystId, statusFilter, statesFilter }: CasesTable
       ...cases.map((case_) =>
         [
           case_.id,
-          `"${case_.client}"`,
+          `"${case_.clientName}"`,
           case_.date,
           case_.sinisterNo,
           `"${case_.patientName}"`,
-          case_.ciPatient,
+          case_.patientCI,
           case_.patientPhone,
           `"${case_.assignedAnalystName}"`,
           `"${case_.status}"`,
@@ -242,7 +243,10 @@ export function CasesTable({ analystId, statusFilter, statesFilter }: CasesTable
         </CardContent>
       </Card>
     )
+  } else {
+    console.log(filteredCases)
   }
+
 
   return (
     <Card>
@@ -306,7 +310,7 @@ export function CasesTable({ analystId, statusFilter, statesFilter }: CasesTable
                     <TableCell className="font-mono text-sm">{case_.sinisterNo}</TableCell>
                     <TableCell className="font-medium">{case_.patientName}</TableCell>
                     <TableCell>{case_.ciPatient}</TableCell>
-                    <TableCell>{case_.client}</TableCell>
+                    <TableCell>{case_.clientName}</TableCell>
                     <TableCell>{case_.assignedAnalystName}</TableCell>
                     <TableCell>{getStatusBadge(case_.status)}</TableCell>
                     <TableCell>{case_.state}</TableCell>

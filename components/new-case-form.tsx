@@ -247,8 +247,8 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
         // Fetch current user
         const userResponse = await fetch("/api/current-user-role")
         if (userResponse.ok) {
-          const userData = await userResponse.json()
-          setCurrentUser(userData)
+          const { session } = await userResponse.json()
+          setCurrentUser(session)
         }
 
         // Fetch analysts
@@ -276,7 +276,7 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
   const handleHolderCIChange = async (value: string) => {
     setHolderCI(value)
 
-    if (value.length >= 7) {
+    if (value.length >= 0) {
       setIsLoadingHolder(true)
       try {
         const response = await fetch(`/api/insurance-holders?ci=${encodeURIComponent(value)}`)
@@ -284,6 +284,7 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
         if (response.ok) {
           const holder = await response.json()
           setHolderData(holder)
+          alert(holder.id)
           setIsNewHolder(false)
 
           // Load holder data into form
@@ -645,9 +646,18 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
       !state
     ) {
       console.log(
-        patientName,
-        ciPatient,
-        patientPhone, "AX")
+        !holderCI,
+        !holderName,
+        !holderPhone,
+        !date,
+        !patientName,
+        !ciPatient,
+        !patientPhone,
+        !assignedAnalystId,
+        !status,
+        !selectedClient?.baremoId,
+        !state
+      )
       toast({
         title: "Error",
         description: "Por favor, complete todos los campos requeridos.",
@@ -655,15 +665,27 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
       })
       return
     }
+    if (!holderData) {
+      toast({
+        title: "Error",
+        description: "Falta informacion del Titular.",
+        variant: "destructive",
+      })
+      return
+    }
 
-    let holderId = holderData?.id || null
+    let holderId = holderData.id || null
     let patientId = patientData?.id || null
 
     // Create holder if new
     if (isNewHolder) {
       holderId = await createHolder()
       if (!holderId) {
-        alert("Nei")
+        toast({
+          title: "Error",
+          description: "No se pudo crear el Titular",
+          variant: "destructive",
+        })
         return // Error creating holder, stop here
       }
     }
@@ -672,7 +694,11 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
     if (patientMode === "different" && isNewPatient) {
       patientId = await createPatient()
       if (!patientId) {
-        alert("Nei")
+        toast({
+          title: "Error",
+          description: "No se pudo crear el paciente.",
+          variant: "destructive",
+        })
         return // Error creating patient, stop here
       }
     }
@@ -686,6 +712,7 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
     if (patientMode === "different" && holderId && patientId) {
       await createHolderPatientRelationship(holderId, patientId)
     }
+    alert(holderId + "ASX")
 
     const newCase: NewCaseData = {
       clientId: selectedClient.id,
@@ -696,9 +723,9 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
       patientPhone,
       assignedAnalystId,
       status,
-      creatorName: currentUser?.name || "Coordinador Regional",
-      creatorEmail: currentUser?.email || "coord@cgm.com",
-      creatorPhone: currentUser?.phone || "0412-9999999",
+      creatorName: currentUser.name || "SYS",
+      creatorEmail: currentUser.email || "SYS@cgm.com",
+      creatorPhone: currentUser.phone || "0412-9999999",
       patientOtherPhone: patientOtherPhone || undefined,
       patientFixedPhone: patientFixedPhone || undefined,
       patientBirthDate: patientBirthDate || undefined,

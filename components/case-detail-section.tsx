@@ -70,12 +70,13 @@ interface CaseDetailSectionProps {
     services?: Service[]
     typeOfRequirement?: string
     baremoName?: string
+    clientName?: string
   }
 }
 
 export function CaseDetailSection({ caseData }: CaseDetailSectionProps) {
   const caseDetails = [
-    { icon: <User />, label: "Cliente", value: caseData.client },
+    { icon: <User />, label: "Cliente", value: caseData.clientName },
     { icon: <CalendarDays />, label: "Fecha", value: caseData.date },
     { icon: <Hash />, label: "N° Siniestro", value: caseData.sinisterNo || "N/A" },
     { icon: <FileText />, label: "N° Identificación", value: caseData.idNumber || "N/A" },
