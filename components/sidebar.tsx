@@ -134,17 +134,17 @@ export function AppSidebar({
       ],
 
     },
-    {
-      title: "Médicos",
-      items: [
-        {
-          title: "Médicos",
-          href: "/doctors", // Esta ruta aún no existe, es un placeholder
-          icon: Stethoscope,
-          roles: ["Superusuario", "Coordinador Regional"],
-        },
-      ],
-    },
+    // {
+    //   title: "Médicos",
+    //   items: [
+    //     {
+    //       title: "Médicos",
+    //       href: "/doctors", // Esta ruta aún no existe, es un placeholder
+    //       icon: Stethoscope,
+    //       roles: ["Superusuario", "Coordinador Regional"],
+    //     },
+    //   ],
+    // },
     {
       title: "Financiero",
       items: [
