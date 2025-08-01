@@ -284,7 +284,6 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
         if (response.ok) {
           const holder = await response.json()
           setHolderData(holder)
-          alert(holder.id)
           setIsNewHolder(false)
 
           // Load holder data into form
@@ -712,7 +711,6 @@ export function NewCaseForm({ onSave }: { onSave: (data: NewCaseData) => void })
     if (patientMode === "different" && holderId && patientId) {
       await createHolderPatientRelationship(holderId, patientId)
     }
-    alert(holderId + "ASX")
 
     const newCase: NewCaseData = {
       clientId: selectedClient.id,

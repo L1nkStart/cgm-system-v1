@@ -390,7 +390,7 @@ export async function POST(req: Request) {
     return NextResponse.json(newCase, { status: 201 })
   } catch (error) {
     console.error("Error creating case:", error)
-    return NextResponse.json({ error: "Failed to create case" }, { status: 500 })
+    return NextResponse.json({ error: error }, { status: 500 })
   }
 }
 
